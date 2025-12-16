@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+// 👇 IMPORT FROM YOUR CONFIG TO FIX 401 ERRORS
+import axios from "../../axiosConfig"; 
 import toast from "react-hot-toast";
 import {
-  Plus, PencilSquare, Trash, Tags, X, Link45deg, 
-  Magic, Search, Book, MoonStarsFill, SunFill, 
+  Plus, Trash, Tags, X, Link45deg, 
+  Magic, Search, MoonStarsFill, SunFill, 
   CloudArrowUp, FileEarmarkPdf 
 } from "react-bootstrap-icons";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,7 +30,6 @@ const ManageBooks = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategory, setNewCategory] = useState("");
 
-  // Upload Mode State: 'url' or 'file'
   const [uploadMode, setUploadMode] = useState('url'); 
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -41,24 +41,25 @@ const ManageBooks = () => {
     cover: "",
     pdfUrl: "",
     synopsis: "",
+    // pages removed
   });
 
   // --- EFFECTS ---
 
-  // 1. Fetch Books
   useEffect(() => {
     const fetchBooks = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/books");
+        const res = await axios.get("/books"); 
         setBooks(res.data);
       } catch (err) {
-        toast.error("Failed to load books");
+        console.error(err);
+        // Don't show toast on 401 to avoid spam, auth middleware handles redirect usually
+        if(err.response?.status !== 401) toast.error("Failed to load books");
       }
     };
     fetchBooks();
   }, []);
 
-  // 2. Initialize Vanta.js
   useEffect(() => {
     if (!vantaEffect && vantaRef.current) {
       setVantaEffect(FOG({
@@ -81,7 +82,6 @@ const ManageBooks = () => {
     return () => { if (vantaEffect) vantaEffect.destroy(); };
   }, [vantaEffect]);
 
-  // 3. Handle Dark Mode Colors
   useEffect(() => {
     if (vantaEffect) {
       if (darkMode) {
@@ -115,7 +115,6 @@ const ManageBooks = () => {
     setCurrentBook({ ...currentBook, [name]: value });
   };
 
-  // Handle File Selection
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file && file.type === "application/pdf") {
@@ -161,17 +160,16 @@ const ManageBooks = () => {
   const handleSaveBook = async (e) => {
     e.preventDefault();
     
-    // Create FormData object to handle both text and file data
     const formData = new FormData();
     formData.append('title', currentBook.title);
     formData.append('author', currentBook.author);
     formData.append('category', currentBook.category);
     formData.append('coverImage', currentBook.cover);
     formData.append('description', currentBook.synopsis);
+    // Removed pages append
 
-    // Conditional Logic: Attach URL or File
     if (uploadMode === 'file' && selectedFile) {
-        formData.append('pdfFile', selectedFile); // Backend must expect 'pdfFile'
+        formData.append('pdfFile', selectedFile); 
         formData.append('pdfSource', 'file');
     } else {
         formData.append('pdfUrl', currentBook.pdfUrl);
@@ -179,29 +177,34 @@ const ManageBooks = () => {
     }
 
     try {
-      // NOTE: Your backend must be configured to handle 'multipart/form-data' 
-      const { data } = await axios.post("http://localhost:5000/api/books", formData, {
+      const { data } = await axios.post("/books", formData, {
           headers: { "Content-Type": "multipart/form-data" }
       });
       
-      setBooks([...books, data]);
+      setBooks([data, ...books]); 
       toast.success("Book saved successfully");
       setShowBookModal(false);
       
-      // Reset Form
-      setCurrentBook({ ...currentBook, title: "", author: "", cover: "", pdfUrl: "", synopsis: "" });
+      setCurrentBook({ 
+          ...currentBook, 
+          title: "", 
+          author: "", 
+          cover: "", 
+          pdfUrl: "", 
+          synopsis: ""
+      });
       setSelectedFile(null);
 
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save book. Check server logs.");
+      toast.error(err.response?.data?.message || "Failed to save book");
     }
   };
 
   const handleDeleteBook = async (id) => {
     if (!window.confirm("Delete this book?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/books/${id}`);
+      await axios.delete(`/books/${id}`);
       setBooks(books.filter((b) => b._id !== id));
       toast.success("Book deleted");
     } catch {
@@ -209,14 +212,11 @@ const ManageBooks = () => {
     }
   };
 
-  // --- UI ---
   return (
     <div className={`relative min-h-screen w-full transition-colors duration-500 font-sans ${darkMode ? 'text-white' : 'text-gray-900'}`}>
       
-      {/* Background Layer */}
       <div ref={vantaRef} className="fixed inset-0 z-0 pointer-events-none opacity-60" />
 
-      {/* Content Layer */}
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
         className="relative z-10 p-6 md:p-10 w-full max-w-7xl mx-auto"
@@ -251,7 +251,7 @@ const ManageBooks = () => {
             </div>
         </div>
 
-        {/* SEARCH & FILTERS */}
+        {/* SEARCH */}
         <div className={`p-1 rounded-2xl mb-8 flex items-center backdrop-blur-md border ${darkMode ? 'bg-gray-900/40 border-gray-700' : 'bg-white/40 border-gray-200'}`}>
             <div className="p-3 pl-4 opacity-50"><Search /></div>
             <input
@@ -322,6 +322,9 @@ const ManageBooks = () => {
                         </AnimatePresence>
                     </tbody>
                 </table>
+                {/* 👇 FIX for Red Hydration Error: 
+                   Moved this OUTSIDE the table. Valid HTML requires div outside of table or inside td.
+                */}
                 {filteredBooks.length === 0 && (
                     <div className="p-10 text-center opacity-50">No books found matching your search.</div>
                 )}
@@ -344,21 +347,18 @@ const ManageBooks = () => {
                         </div>
                         
                         <form onSubmit={handleSaveBook} className="space-y-4">
-                            {/* Title & Author */}
                             <div className="grid grid-cols-2 gap-4">
                                 <input name="title" placeholder="Book Title" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
                                 <input name="author" placeholder="Author" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
                             </div>
                             
-                            {/* Category */}
+                            {/* Removed Page Count Input Here */}
                             <select name="category" className={`w-full p-3 rounded-xl border outline-none appearance-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange}>
                                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                             </select>
 
-                            {/* Cover URL */}
                             <input name="cover" placeholder="Cover Image URL" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
                             
-                            {/* --- PDF UPLOAD SWITCHER --- */}
                             <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                                 <div className="flex gap-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
                                     <button type="button" onClick={() => setUploadMode('url')} className={`text-sm font-bold pb-2 ${uploadMode === 'url' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500'}`}>
@@ -386,7 +386,6 @@ const ManageBooks = () => {
                                 )}
                             </div>
 
-                            {/* Synopsis */}
                             <div className="relative">
                                 <textarea name="synopsis" placeholder="Book Synopsis..." rows="3" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
                                 <button type="button" onClick={handleAIGenerate} className="absolute bottom-3 right-3 text-xs font-bold text-purple-500 bg-purple-100 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-purple-200">

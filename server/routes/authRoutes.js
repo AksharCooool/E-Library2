@@ -1,10 +1,15 @@
 import express from "express";
-import { register, login, logout, getMe } from "../controllers/authController.js";
+import { registerUser, loginUser } from "../controllers/authController.js";
+// 👇 Import these two so we can handle the "/me" route
+import { getUserProfile } from "../controllers/userController.js";
+import { protect } from "../middleware/authMiddleware.js";
+
 const router = express.Router();
 
-router.post("/register", register);
-router.post("/login", login);
-router.post("/logout", logout); // New
-router.get("/me", getMe);       // New (Used by React to check login status on refresh)
+router.post("/register", registerUser);
+router.post("/login", loginUser);
+
+// 👇 THIS IS THE FIX: Restore the endpoint your frontend is looking for
+router.get("/me", protect, getUserProfile);
 
 export default router;

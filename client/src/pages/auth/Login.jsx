@@ -20,39 +20,39 @@ const Login = () => {
       setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle Login Submit
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  /// Handle Login Submit
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-        // 1. Call Backend API (Cookies handled automatically via axiosConfig)
-        const { data } = await axios.post('/auth/login', formData);
-        
-        // 2. Save User Info (For UI display only, NOT for auth validation)
-        localStorage.setItem('user', JSON.stringify({
-            _id: data._id,
-            name: data.name,
-            email: data.email,
-            role: data.role
-        }));
+  try {
+    const { data } = await axios.post('/auth/login', formData);
 
-        toast.success(`Welcome back, ${data.name}!`);
+    // 👇 CRITICAL FIX: Save as 'userInfo' and include the Token
+    localStorage.setItem('userInfo', JSON.stringify({
+      _id: data._id,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      token: data.token // <--- Save the token!
+    }));
 
-        // 3. Smart Redirect based on Role received from Backend
-        if (data.role === 'admin') {
-            navigate('/admin');
-        } else {
-            navigate('/dashboard/home');
-        }
+    toast.success(`Welcome back, ${data.name}!`);
 
-    } catch (error) {
-        const message = error.response?.data?.message || "Login Failed";
-        toast.error(message);
-    } finally {
-        setLoading(false);
+    if (data.role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/dashboard/home');
     }
-  };
+
+  } catch (error) {
+    console.error(error);
+    const message = error.response?.data?.message || "Login Failed";
+    toast.error(message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen w-full flex bg-gray-50 overflow-hidden font-sans">

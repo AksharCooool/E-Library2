@@ -6,7 +6,7 @@ import {
   X, ZoomIn, ZoomOut, Send 
 } from 'react-bootstrap-icons';
 import toast from 'react-hot-toast';
-import axios from '../../axiosConfig'; // <--- USE YOUR AXIOS CONFIG (For Sessions)
+import axios from '../../axiosConfig'; 
 
 // PDF Worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -33,34 +33,28 @@ const BookReader = () => {
   const [userQuestion, setUserQuestion] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  // ---------- 1. FETCH BOOK & SAVED PROGRESS ----------
+  // ---------- 1. FETCH BOOK & PROGRESS ----------
   useEffect(() => {
     const initializeReader = async () => {
-      // Handle Mock/Placeholder
-      if (id === 'placeholder-1') {
-          setPdfUrl("https://pdfobject.com/pdf/sample.pdf"); 
-          return;
-      }
+      // 1. SET PDF URL (Do this first so book loads immediately)
+      // Point directly to your backend stream
+      setPdfUrl(`http://localhost:5000/api/books/stream/${id}`);
 
+      // 2. TRY TO FETCH SAVED PROGRESS (Don't crash if this fails)
       try {
-        // A. Get User Progress (Resume Logic)
-        const { data: user } = await axios.get('/auth/me');
-        const savedProgress = user.readingProgress.find(p => p.bookId._id === id || p.bookId === id);
+        // Try getting profile (Assuming you have a GET /api/users/profile route)
+        // If not, this block handles the error gracefully
+        const { data: user } = await axios.get('/users/profile').catch(() => ({ data: null }));
         
-        if (savedProgress) {
-            setPageNumber(savedProgress.currentPage);
-            // toast.success(`Resumed at page ${savedProgress.currentPage}`);
+        if (user && user.readingProgress) {
+            const savedProgress = user.readingProgress.find(p => p.bookId === id || (p.bookId && p.bookId._id === id));
+            if (savedProgress && savedProgress.currentPage > 1) {
+                setPageNumber(savedProgress.currentPage);
+                toast.success(`Resumed at page ${savedProgress.currentPage}`, { position: 'top-center' });
+            }
         }
-
-        // B. Get PDF Stream
-        // We use the stream endpoint directly. 
-        // Note: checking if book exists first is good practice
-        await axios.get(`/books/${id}`); 
-        setPdfUrl(`http://localhost:5000/api/books/stream/${id}`);
-
       } catch (error) {
-        console.error("Reader Error:", error);
-        toast.error("Failed to load book or progress");
+        console.warn("Could not load reading progress (User might not be logged in)");
       }
     };
 
@@ -69,15 +63,14 @@ const BookReader = () => {
 
   // ---------- 2. SYNC PROGRESS TO DB ----------
   const updateDatabase = async (newPage, total) => {
-      if (id === 'placeholder-1') return; // Don't save mock data
-
       try {
           await axios.put('/users/progress', {
               bookId: id,
               currentPage: newPage,
-              totalPages: total || numPages // Use total if provided, else current state
+              totalPages: total || numPages 
           });
       } catch (error) {
+          // Silently fail if user is not logged in
           console.error("Failed to save progress", error);
       }
   };
@@ -85,24 +78,20 @@ const BookReader = () => {
   // ---------- PDF HANDLERS ----------
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
-    // Sync total pages to DB immediately on load
-    updateDatabase(pageNumber, numPages); 
+    // Don't save page 1 immediately to avoid overwriting progress if user resumes at pg 50
   };
 
   const changePage = (offset) => {
       setPageNumber(prevPage => {
           const newPage = prevPage + offset;
-          // Boundary Check
           if (newPage < 1 || newPage > numPages) return prevPage;
           
-          // Fire and forget save (doesn't block UI)
-          updateDatabase(newPage, numPages);
-          
+          updateDatabase(newPage, numPages); // Save progress
           return newPage;
       });
   };
 
-  // ---------- AI FEATURES (Simulated) ----------
+  // ---------- AI FEATURES ----------
   const addMessage = (role, text) => {
     setChatHistory(prev => [...prev, { role, text }]);
   };
@@ -164,7 +153,7 @@ const BookReader = () => {
                 file={pdfUrl} 
                 onLoadSuccess={onDocumentLoadSuccess} 
                 loading={<div className="p-20 text-gray-400">Loading Book PDF...</div>}
-                error={<div className="p-20 text-red-500">Failed to load PDF.</div>}
+                error={<div className="p-20 text-red-500">Failed to load PDF. Is the server running?</div>}
             >
                 <Page pageNumber={pageNumber} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} />
             </Document>

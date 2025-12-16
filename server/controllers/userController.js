@@ -1,134 +1,171 @@
 import User from "../models/User.js";
+import Review from "../models/Review.js"; 
+import asyncHandler from "express-async-handler";
 import bcrypt from "bcryptjs";
 
-// @desc    Toggle Favorite (Add/Remove)
-// @route   PUT /api/users/favorites/:id
-export const toggleFavorite = async (req, res) => {
-  const bookId = req.params.id;
-  // Safety check for session
-  if (!req.session || !req.session.userId) {
-     return res.status(401).json({ message: "Not authorized" });
-  }
-  
-  const user = await User.findById(req.session.userId);
+// @desc    Get Current User Profile & Stats
+// @route   GET /api/users/profile
+// @access  Private
+export const getUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id)
+    .populate("favorites")
+    .populate("readingProgress.bookId");
 
-  if (user.favorites.includes(bookId)) {
-    // Remove if already exists
-    user.favorites = user.favorites.filter((id) => id.toString() !== bookId);
-    await user.save();
-    res.json({ message: "Removed from favorites", favorites: user.favorites });
-  } else {
-    // Add if not exists
-    user.favorites.push(bookId);
-    await user.save();
-    res.json({ message: "Added to favorites", favorites: user.favorites });
-  }
-};
+  if (user) {
+    // 1. Count Reviews (Checks the 'reviews' collection)
+    const reviewsCount = await Review.countDocuments({ user: req.user._id });
 
-// @desc    Get User Favorites (Populated with Book details)
-// @route   GET /api/users/favorites
-export const getFavorites = async (req, res) => {
-  try {
-    if (!req.session || !req.session.userId) {
-        return res.status(401).json({ message: "Not authorized" });
+    // 2. FILTER DUPLICATES (Fixes the "Double Results" bug)
+    // We create a Map to keep only the latest entry for each book
+    const uniqueProgressMap = new Map();
+    
+    if (user.readingProgress) {
+        user.readingProgress.forEach((item) => {
+            // Only add if book exists (in case book was deleted)
+            if (item.bookId) {
+                // Determine ID (handle populated vs unpopulated)
+                const bId = item.bookId._id ? item.bookId._id.toString() : item.bookId.toString();
+                // Map overwrites previous keys, so we keep the last one.
+                uniqueProgressMap.set(bId, item);
+            }
+        });
     }
-    // .populate('favorites') replaces the IDs with the actual Book data
-    const user = await User.findById(req.session.userId).populate("favorites");
-    res.json(user.favorites);
-  } catch (error) {
-    res.status(500).json({ message: "Server error fetching favorites" });
+    const uniqueProgressList = Array.from(uniqueProgressMap.values());
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      gender: user.gender,
+      
+      // Stats
+      favoritesCount: user.favorites.length,
+      booksStarted: uniqueProgressList.length,
+      reviewsCount: reviewsCount,
+
+      // Data lists
+      favorites: user.favorites, 
+      readingProgress: uniqueProgressList 
+    });
+  } else {
+    res.status(404);
+    throw new Error("User not found");
   }
-};
+});
 
 // @desc    Update Reading Progress
 // @route   PUT /api/users/progress
-export const updateProgress = async (req, res) => {
+export const updateProgress = asyncHandler(async (req, res) => {
   const { bookId, currentPage, totalPages } = req.body;
-  
-  if (!req.session || !req.session.userId) {
-     return res.status(401).json({ message: "Not authorized" });
-  }
-  const userId = req.session.userId;
+  const user = await User.findById(req.user._id);
 
-  try {
-    const user = await User.findById(userId);
+  if (user) {
+    // 1. CLEANUP: Remove ANY existing progress for this specific book
+    // This wipes out duplicates instantly before adding the new one
+    user.readingProgress = user.readingProgress.filter(
+      (p) => p.bookId.toString() !== bookId
+    );
 
-    // Check if we are already tracking this book
-    const progressIndex = user.readingProgress.findIndex(p => p.bookId.toString() === bookId);
-
-    if (progressIndex > -1) {
-      // Update existing entry
-      user.readingProgress[progressIndex].currentPage = currentPage;
-      user.readingProgress[progressIndex].totalPages = totalPages;
-      user.readingProgress[progressIndex].lastRead = Date.now();
-    } else {
-      // Add new entry
-      user.readingProgress.push({ bookId, currentPage, totalPages });
-    }
+    // 2. Add the new, single entry
+    user.readingProgress.push({ 
+        bookId, 
+        currentPage, 
+        totalPages,
+        lastRead: Date.now()
+    });
 
     await user.save();
     res.status(200).json({ message: "Progress saved" });
-  } catch (error) {
-    console.error("Progress Error:", error);
-    res.status(500).json({ message: "Error saving progress" });
+  } else {
+    res.status(404);
+    throw new Error("User not found");
   }
-};
+});
 
-// @desc    Update User Profile (Name, Email, Gender, Password)
-// @route   PUT /api/users/profile
-// --- THIS IS THE FIXED VERSION ---
-export const updateUserProfile = async (req, res) => {
-  try {
-    // 1. SAFETY CHECK: Ensure the user is actually logged in
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ message: "Session expired. Please log in again." });
-    }
+// @desc    Toggle Favorite (Add/Remove)
+// @route   PUT /api/users/favorites/:id
+export const toggleFavorite = asyncHandler(async (req, res) => {
+  const bookId = req.params.id;
+  const user = await User.findById(req.user._id);
 
-    const user = await User.findById(req.session.userId);
-
-    if (user) {
-      // 2. DUPLICATE EMAIL CHECK
-      // If the user is changing their email, check if the new email is already taken
-      if (req.body.email && req.body.email !== user.email) {
-        const emailExists = await User.findOne({ email: req.body.email });
-        if (emailExists) {
-          return res.status(400).json({ message: "That email is already in use by another account." });
-        }
-        user.email = req.body.email;
-      }
-
-      // 3. Update other fields
-      user.name = req.body.name || user.name;
-      user.gender = req.body.gender || user.gender;
-
-      // 4. Update Password (Only if a new one is provided)
-      if (req.body.password && req.body.password.trim() !== "") {
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(req.body.password, salt);
-      }
-
-      const updatedUser = await user.save();
-
-      // 5. Send back the new data
-      res.json({
-        _id: updatedUser._id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        gender: updatedUser.gender,
-      });
+  if (user) {
+    if (user.favorites.includes(bookId)) {
+      user.favorites = user.favorites.filter((id) => id.toString() !== bookId);
+      await user.save();
+      res.json({ message: "Removed from favorites", favorites: user.favorites });
     } else {
-      res.status(404).json({ message: "User not found" });
+      user.favorites.push(bookId);
+      await user.save();
+      res.json({ message: "Added to favorites", favorites: user.favorites });
     }
-  } catch (error) {
-    // 6. CRITICAL: Log the actual error to your VS Code terminal
-    console.error("❌ PROFILE UPDATE ERROR:", error);
-
-    // Handle specific MongoDB Duplicate Key Error
-    if (error.code === 11000) {
-        return res.status(400).json({ message: "This email is already registered." });
-    }
-
-    res.status(500).json({ message: "Server error: " + error.message });
+  } else {
+    res.status(404);
+    throw new Error("User not found");
   }
-};
+});
+
+// @desc    Get User Favorites (RESTORED TO FIX CRASH)
+// @route   GET /api/users/favorites
+export const getFavorites = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).populate("favorites");
+  if (user) {
+    res.json(user.favorites);
+  } else {
+    res.status(404);
+    throw new Error("User not found");
+  }
+});
+
+// @desc    Update User Profile
+// @route   PUT /api/users/profile
+export const updateUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    if (req.body.email && req.body.email !== user.email) {
+      const emailExists = await User.findOne({ email: req.body.email });
+      if (emailExists) {
+        res.status(400);
+        throw new Error("Email already in use");
+      }
+      user.email = req.body.email;
+    }
+
+    user.name = req.body.name || user.name;
+    user.gender = req.body.gender || user.gender;
+
+    if (req.body.password) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(req.body.password, salt);
+    }
+
+    const updatedUser = await user.save();
+    
+    // Recount stats for response
+    const reviewsCount = await Review.countDocuments({ user: updatedUser._id });
+
+    // Deduplicate progress for response
+    const uniqueProgressMap = new Map();
+    if (updatedUser.readingProgress) {
+        updatedUser.readingProgress.forEach(item => {
+             if(item.bookId) uniqueProgressMap.set(item.bookId.toString(), item);
+        });
+    }
+
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      gender: updatedUser.gender,
+      favoritesCount: updatedUser.favorites.length,
+      booksStarted: uniqueProgressMap.size,
+      reviewsCount: reviewsCount,
+      token: req.headers.authorization.split(" ")[1] 
+    });
+  } else {
+    res.status(404);
+    throw new Error("User not found");
+  }
+});

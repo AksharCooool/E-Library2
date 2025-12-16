@@ -10,15 +10,19 @@ const userSchema = mongoose.Schema(
         enum: ["user", "admin"], 
         default: "user" 
     },
+    
+    // 👇 ADDED THIS FIELD (Fixes the Profile Update bug)
+    gender: { type: String, default: "Not Specified" },
+
     // Favorites
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
     
-    // --- NEW: TRACK READING PROGRESS ---
+    // --- TRACK READING PROGRESS ---
     readingProgress: [
       {
         bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book" },
-        currentPage: { type: Number, default: 1 },
-        totalPages: { type: Number, default: 100 }, 
+        currentPage: { type: Number, default: 0 },
+        totalPages: { type: Number, default: 0 }, 
         lastRead: { type: Date, default: Date.now }
       }
     ]

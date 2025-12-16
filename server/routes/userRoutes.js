@@ -2,8 +2,9 @@ import express from "express";
 import { 
   toggleFavorite, 
   getFavorites, 
-  updateProgress, 
-  updateUserProfile // <--- Import the new controller
+  updateProgress,
+  getUserProfile,   // <--- Add this import
+  updateUserProfile 
 } from "../controllers/userController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -18,7 +19,13 @@ router.put("/favorites/:id", protect, toggleFavorite);
 // Update Reading Progress (Protected)
 router.put("/progress", protect, updateProgress);
 
-// Update User Profile (Name, Email, Password, Gender) - NEW
+// --- User Profile Routes ---
+
+// Get User Profile (Protected)
+// Use this to pre-fill the profile form on the frontend
+router.get("/profile", protect, getUserProfile);
+
+// Update User Profile (Name, Email, Password, Gender)
 router.put("/profile", protect, updateUserProfile);
 
 export default router;

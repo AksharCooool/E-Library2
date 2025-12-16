@@ -4,16 +4,19 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import Book from "../models/Book.js";
+
 import {
   getBooks,
   getBookById,
   createBook,
   deleteBook,
+  createBookReview, 
 } from "../controllers/bookController.js";
+import { protect } from "../middleware/authMiddleware.js"; 
 
 const router = express.Router();
 
-// --- MULTER CONFIGURATION (ESM Friendly) ---
+// --- MULTER CONFIGURATION ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,16 +41,21 @@ const upload = multer({ storage });
 
 // --- ROUTES ---
 
+// 1. Get all books (Public) & Create book (Protected)
 router.route("/")
   .get(getBooks)
-  // 'pdfFile' must match the name in Frontend FormData
-  .post(upload.single("pdfFile"), createBook); 
+  .post(protect, upload.single("pdfFile"), createBook); // 🔒 Added protect here
 
+// 2. Add a Review (Protected)
+// This is the specific fix for your 500 Error
+router.route("/:id/reviews").post(protect, createBookReview);
+
+// 3. Get single book (Public) & Delete book (Protected)
 router.route("/:id")
   .get(getBookById)
-  .delete(deleteBook);
+  .delete(protect, deleteBook); // 🔒 Added protect here
 
-// --- PDF STREAM ENDPOINT (Updated) ---
+// --- PDF STREAM ENDPOINT ---
 router.get("/stream/:id", async (req, res) => {
   try {
     const book = await Book.findById(req.params.id);
@@ -57,23 +65,21 @@ router.get("/stream/:id", async (req, res) => {
     }
 
     // Determine if it is a local file or external URL
-    if (book.pdfUrl.startsWith("http")) {
-        // If it's an external link (like google drive), just redirect
-        return res.redirect(book.pdfUrl);
+    if (book.pdfUrl.startsWith("http") && !book.pdfUrl.includes("localhost")) {
+       return res.redirect(book.pdfUrl);
     }
 
-    // If it's a local file, stream it
-    // Logic: If the DB saves full URL "http://localhost:5000/uploads/...", extract filename
+    // If it's a local file
     const filename = book.pdfUrl.split("/").pop();
     const filePath = path.join(process.cwd(), "uploads/pdfs", filename);
 
     if (fs.existsSync(filePath)) {
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-        const fileStream = fs.createReadStream(filePath);
-        fileStream.pipe(res);
+       res.setHeader("Content-Type", "application/pdf");
+       res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+       const fileStream = fs.createReadStream(filePath);
+       fileStream.pipe(res);
     } else {
-        res.status(404).json({ message: "File not found on server" });
+       res.status(404).json({ message: "File not found on server" });
     }
 
   } catch (error) {
