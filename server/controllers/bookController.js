@@ -3,6 +3,7 @@ import Review from "../models/Review.js";
 import fs from "fs";
 import path from "path";
 import asyncHandler from "express-async-handler";
+import { PDFDocument } from 'pdf-lib'; // <--- 1. Import PDF-Lib
 
 // 1. GET ALL BOOKS
 export const getBooks = asyncHandler(async (req, res) => {
@@ -27,15 +28,37 @@ export const getBookById = asyncHandler(async (req, res) => {
   }
 });
 
-// 3. CREATE BOOK
+// 3. CREATE BOOK (Auto-Page Count Logic Added)
 export const createBook = asyncHandler(async (req, res) => {
   const { title, author, category, description, coverImage, pdfUrl, pages } = req.body;
 
-  let finalPdfUrl = pdfUrl; // Default: use the manually entered link
+  let finalPdfUrl = pdfUrl; 
+  let finalPageCount = Number(pages) || 0; // Default to input or 0
 
   // IF A FILE WAS UPLOADED
   if (req.file) {
+    // 1. Set the URL
     finalPdfUrl = `${req.protocol}://${req.get("host")}/uploads/pdfs/${req.file.filename}`;
+
+    // 2. 👇 AUTO-DETECT PAGES (If not manually provided)
+    if (finalPageCount === 0) {
+        try {
+            // Read the file from the disk
+            const pdfPath = req.file.path;
+            const pdfBuffer = fs.readFileSync(pdfPath);
+            
+            // Load into pdf-lib
+            const pdfDoc = await PDFDocument.load(pdfBuffer);
+            
+            // Get the count
+            finalPageCount = pdfDoc.getPageCount();
+            
+            console.log(`Auto-detected ${finalPageCount} pages for ${req.file.originalname}`);
+        } catch (error) {
+            console.error("Failed to count PDF pages:", error);
+            // We just keep finalPageCount as 0 if this fails, so it doesn't crash the upload
+        }
+    }
   }
 
   const book = new Book({
@@ -46,7 +69,7 @@ export const createBook = asyncHandler(async (req, res) => {
     description,
     coverImage,
     pdfUrl: finalPdfUrl,
-    pages: pages || 0,
+    pages: finalPageCount, // <--- Use the calculated count
     isTrending: false, // Default to false
   });
 

@@ -45,18 +45,18 @@ const UserDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data } = await axios.get('/auth/me'); // Gets User + Favorites + ReadingProgress + ReviewsCount
+        const { data } = await axios.get('/auth/me'); 
         setUser(data);
         
         // --- PROCESS READING LIST ---
         const activeReads = (data.readingProgress || [])
-            .filter(item => item.bookId !== null) // Safety check if book was deleted
+            .filter(item => item.bookId !== null) // Safety check
+            // 👇 FIXED: Use reverse() to show the most recently added/read book at the top
+            .reverse() 
             .map(item => {
                 const current = item.currentPage || 1;
-                
-                // 👇 FIXED: Get total pages from the Book object, not the progress item
+                // Get pages from Book Object
                 const total = item.bookId.pages || 100; 
-
                 const percent = Math.round((current / total) * 100);
 
                 return {
@@ -66,7 +66,7 @@ const UserDashboard = () => {
                     coverImage: item.bookId.coverImage,
                     currentPage: current,
                     totalPages: total,
-                    progress: percent > 100 ? 100 : percent // Cap at 100%
+                    progress: percent > 100 ? 100 : percent
                 };
             });
         
