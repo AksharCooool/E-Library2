@@ -17,7 +17,16 @@ export const loginUser = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
 
+  // 1. Check if user exists and password matches
   if (user && (await bcrypt.compare(password, user.password))) {
+    
+    // 👇 2. SECURITY CHECK: Is the user blocked?
+    if (user.isBlocked) {
+        res.status(403); // 403 = Forbidden
+        throw new Error("Access Denied: Your account has been suspended.");
+    }
+
+    // 3. Login Successful
     res.json({
       _id: user._id,
       name: user.name,
@@ -54,6 +63,9 @@ export const registerUser = asyncHandler(async (req, res) => {
         }
     }
 
+    // Hash Password
+    // NOTE: Ensure your User.js model does NOT have a pre('save') hook that hashes password,
+    // or you will hash it twice!
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -63,7 +75,8 @@ export const registerUser = asyncHandler(async (req, res) => {
         email,
         password: hashedPassword,
         gender: gender || "Not Specified",
-        role: finalRole 
+        role: finalRole,
+        // isBlocked defaults to false in Schema, so we don't need to set it here
     });
 
     if (user) {

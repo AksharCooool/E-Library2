@@ -2,32 +2,47 @@ import mongoose from "mongoose";
 
 const userSchema = mongoose.Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    role: { 
-        type: String, 
-        enum: ["user", "admin"], 
-        default: "user" 
+    name: {
+      type: String,
+      required: true,
     },
-    
-    // 👇 ADDED THIS FIELD (Fixes the Profile Update bug)
-    gender: { type: String, default: "Not Specified" },
-
-    // Favorites
-    favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
-    
-    // --- TRACK READING PROGRESS ---
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    gender: {
+      type: String,
+      default: "Not Specified",
+    },
+    role: {
+      type: String,
+      default: "user",
+      enum: ["user", "admin"],
+    },
+    // 👇 ADD THIS FIELD TO MAKE BLOCKING WORK
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
+    // (Optional) Reading Progress for your dashboard stats
     readingProgress: [
       {
         bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book" },
         currentPage: { type: Number, default: 0 },
-        totalPages: { type: Number, default: 0 }, 
-        lastRead: { type: Date, default: Date.now }
-      }
-    ]
+      },
+    ],
+    favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-export default mongoose.model("User", userSchema);
+const User = mongoose.model("User", userSchema);
+
+export default User;

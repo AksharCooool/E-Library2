@@ -21,38 +21,47 @@ const Login = () => {
   };
 
   /// Handle Login Submit
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
 
-  try {
-    const { data } = await axios.post('/auth/login', formData);
+    try {
+      const { data } = await axios.post('/auth/login', formData);
 
-    // 👇 CRITICAL FIX: Save as 'userInfo' and include the Token
-    localStorage.setItem('userInfo', JSON.stringify({
-      _id: data._id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      token: data.token // <--- Save the token!
-    }));
+      localStorage.setItem('userInfo', JSON.stringify({
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        token: data.token
+      }));
 
-    toast.success(`Welcome back, ${data.name}!`);
+      toast.success(`Welcome back, ${data.name}!`);
 
-    if (data.role === 'admin') {
-      navigate('/admin');
-    } else {
-      navigate('/dashboard/home');
+      if (data.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard/home');
+      }
+
+    } catch (error) {
+      console.error(error);
+      
+      // 👇 CRITICAL FIX: Ignore 403 errors here
+      // The Global Interceptor (axiosConfig.js) handles "Blocked" users.
+      // If we handle it here too, we get double messages.
+      if (error.response && error.response.status === 403) {
+          return; // Stop execution, let the interceptor do the work
+      }
+
+      // Handle normal errors (Wrong password, etc.)
+      const message = error.response?.data?.message || "Login Failed";
+      toast.error(message);
+      setLoading(false); // Only stop loading if it's NOT a redirect
     }
-
-  } catch (error) {
-    console.error(error);
-    const message = error.response?.data?.message || "Login Failed";
-    toast.error(message);
-  } finally {
-    setLoading(false);
-  }
-};
+    // We removed 'finally' because if it's a success or a block, 
+    // we might want the loading spinner to stay until the page changes.
+  };
 
   return (
     <div className="min-h-screen w-full flex bg-gray-50 overflow-hidden font-sans">

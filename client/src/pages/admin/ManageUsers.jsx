@@ -1,62 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from '../../axiosConfig'; // 1. Import Axios
 import toast from 'react-hot-toast';
 import { Trash, Search, PersonCircle, ShieldLock, Eye, X, Book, Star, Heart, Send } from 'react-bootstrap-icons';
 
 const ManageUsers = () => {
-  // Fake User Data
-  const [users, setUsers] = useState([
-    { 
-      id: 1, name: "John Doe", email: "john@example.com", role: "User", status: "Active", joined: "2025-10-12", isOnline: true,
-      stats: { booksRead: 12, reviews: 5, favorites: 8 } 
-    },
-    { 
-      id: 2, name: "Admin User", email: "admin@library.io", role: "Admin", status: "Active", joined: "2025-09-01", isOnline: true,
-      stats: { booksRead: 45, reviews: 12, favorites: 20 }
-    },
-    { 
-      id: 3, name: "Jane Smith", email: "jane@test.com", role: "User", status: "Inactive", joined: "2025-11-05", isOnline: false,
-      stats: { booksRead: 2, reviews: 0, favorites: 1 }
-    },
-    { 
-      id: 4, name: "Mike Ross", email: "mike.ross@law.com", role: "User", status: "Active", joined: "2025-12-01", isOnline: false,
-      stats: { booksRead: 8, reviews: 3, favorites: 5 }
-    },
-  ]);
-
+  // --- STATE ---
+  const [users, setUsers] = useState([]); // 2. Start with empty array
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Modal States
   const [selectedUser, setSelectedUser] = useState(null); 
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showMessageModal, setShowMessageModal] = useState(false); // NEW
-  const [messageText, setMessageText] = useState(""); // NEW
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState("");
+
+  // --- 3. FETCH USERS FROM DB ---
+  useEffect(() => {
+    const fetchUsers = async () => {
+        try {
+            const { data } = await axios.get('/admin/users');
+            setUsers(data);
+            setLoading(false);
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to fetch users");
+            setLoading(false);
+        }
+    };
+    fetchUsers();
+  }, []);
 
   // --- HANDLERS ---
 
-  // 1. Delete User
-  const handleDelete = (id) => {
-    if(window.confirm("Are you sure you want to remove this user completely?")) {
-        setUsers(users.filter(user => user.id !== id));
-        toast.error('User removed successfully.');
+  // 4. DELETE USER (Dynamic)
+  const handleDelete = async (id) => {
+    if(!window.confirm("Are you sure you want to remove this user completely? This action cannot be undone.")) return;
+    
+    try {
+        await axios.delete(`/admin/users/${id}`);
+        setUsers(users.filter(user => user._id !== id));
+        toast.success('User removed successfully.');
+        
+        if (selectedUser?._id === id) setShowProfileModal(false); // Close modal if open
+    } catch (error) {
+        toast.error(error.response?.data?.message || "Delete failed");
     }
   };
 
-  // 2. Ban / Activate Logic (Frontend Simulation)
-  const handleToggleStatus = () => {
-      if (!selectedUser) return;
+  // 5. BLOCK / UNBLOCK USER (Dynamic)
+const handleToggleStatus = async () => {
+    if (!selectedUser) return;
 
-      const newStatus = selectedUser.status === "Active" ? "Inactive" : "Active";
-      
-      // Update the local list
-      setUsers(users.map(u => u.id === selectedUser.id ? { ...u, status: newStatus } : u));
-      
-      // Update the selected user object too so the modal updates instantly
-      setSelectedUser({ ...selectedUser, status: newStatus });
+    try {
+        // 1. Send Request
+        const { data } = await axios.put(`/admin/users/${selectedUser._id}/block`);
+        
+        // 2. GET THE REAL STATUS FROM BACKEND (Crucial!)
+        const newStatus = data.isBlocked; 
 
-      toast.success(newStatus === "Inactive" ? "User Banned!" : "User Activated!");
-  };
+        // 3. Update the main list so the table badge updates
+        setUsers(prevUsers => prevUsers.map(u => 
+            u._id === selectedUser._id ? { ...u, isBlocked: newStatus } : u
+        ));
+        
+        // 4. Update the Modal so the BUTTON text updates
+        setSelectedUser(prev => ({ ...prev, isBlocked: newStatus }));
 
-  // 3. Send Message Logic (Frontend Simulation)
+        // 5. Success Message
+        toast.success(newStatus ? "User Blocked!" : "User Activated!");
+
+    } catch (error) {
+        toast.error(error.response?.data?.message || "Update failed");
+    }
+};
+
+  // 6. SEND MESSAGE (Still Simulation - No Backend for this yet)
   const handleSendMessage = (e) => {
       e.preventDefault();
       toast.success(`Message sent to ${selectedUser.name}`);
@@ -69,9 +88,17 @@ const ManageUsers = () => {
     setShowProfileModal(true);
   };
 
+  // Helper: Format Date
+  const formatDate = (dateString) => {
+      if (!dateString) return "N/A";
+      return new Date(dateString).toLocaleDateString("en-US", {
+          year: 'numeric', month: 'short', day: 'numeric'
+      });
+  };
+
   const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -107,36 +134,54 @@ const ManageUsers = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredUsers.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                <td className="p-4 flex items-center gap-4">
-                    <div className="relative">
-                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
-                            <PersonCircle size={24} />
+            {loading ? (
+                <tr><td colSpan="5" className="p-8 text-center text-gray-500">Loading users...</td></tr>
+            ) : filteredUsers.length === 0 ? (
+                <tr><td colSpan="5" className="p-8 text-center text-gray-500">No users found.</td></tr>
+            ) : (
+                filteredUsers.map((user) => (
+                <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 flex items-center gap-4">
+                        <div className="relative">
+                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+                                <PersonCircle size={24} />
+                            </div>
                         </div>
-                        {user.isOnline && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full shadow-sm"></span>}
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                            {user.name} 
-                            {user.isOnline && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full uppercase tracking-wide font-bold">Online</span>}
-                        </h4>
-                        <p className="text-sm text-gray-500">{user.email}</p>
-                    </div>
-                </td>
-                <td className="p-4">
-                   {user.role === "Admin" ? <span className="flex items-center gap-1 text-xs font-bold bg-black text-white px-3 py-1 rounded-full w-fit"><ShieldLock size={12} /> Admin</span> : <span className="text-xs font-bold bg-gray-100 text-gray-600 px-3 py-1 rounded-full">User</span>}
-                </td>
-                <td className="p-4">
-                  <span className={`px-3 py-1 text-xs font-bold rounded-full border ${user.status === "Active" ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-red-50 text-red-600 border-red-200"}`}>{user.status}</span>
-                </td>
-                <td className="p-4 text-gray-600 font-medium">{user.joined}</td>
-                <td className="p-4 text-right space-x-2">
-                  <button onClick={() => handleViewUser(user)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><Eye size={18} /></button>
-                  <button onClick={() => handleDelete(user.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash size={18} /></button>
-                </td>
-              </tr>
-            ))}
+                        <div>
+                            <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                                {user.name} 
+                            </h4>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                        </div>
+                    </td>
+                    <td className="p-4">
+                        {user.role === "admin" ? (
+                            <span className="flex items-center gap-1 text-xs font-bold bg-black text-white px-3 py-1 rounded-full w-fit">
+                                <ShieldLock size={12} /> Admin
+                            </span>
+                        ) : (
+                            <span className="text-xs font-bold bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+                                User
+                            </span>
+                        )}
+                    </td>
+                    <td className="p-4">
+                        <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
+                            !user.isBlocked 
+                            ? "bg-blue-50 text-blue-600 border-blue-200" 
+                            : "bg-red-50 text-red-600 border-red-200"
+                        }`}>
+                            {!user.isBlocked ? "Active" : "Banned"}
+                        </span>
+                    </td>
+                    <td className="p-4 text-gray-600 font-medium">{formatDate(user.createdAt)}</td>
+                    <td className="p-4 text-right space-x-2">
+                        <button onClick={() => handleViewUser(user)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><Eye size={18} /></button>
+                        <button onClick={() => handleDelete(user._id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash size={18} /></button>
+                    </td>
+                </tr>
+                ))
+            )}
           </tbody>
         </table>
       </div>
@@ -150,31 +195,33 @@ const ManageUsers = () => {
                 <div className="flex flex-col items-center mb-8">
                     <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mb-4 relative">
                         <PersonCircle size={48} />
-                        {selectedUser.isOnline && <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></span>}
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900">{selectedUser.name}</h2>
                     <p className="text-gray-500">{selectedUser.email}</p>
                     <div className="mt-2 flex gap-2">
                         <span className="px-3 py-1 rounded-full bg-gray-100 text-xs font-bold text-gray-600 uppercase tracking-wide">{selectedUser.role}</span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${selectedUser.isOnline ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}>{selectedUser.isOnline ? "Online Now" : "Offline"}</span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${selectedUser.status === "Active" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}>{selectedUser.status}</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
+                            !selectedUser.isBlocked ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                        }`}>
+                            {!selectedUser.isBlocked ? "Active" : "Banned"}
+                        </span>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 mb-8">
                     <div className="bg-blue-50 p-4 rounded-2xl text-center border border-blue-100">
                         <div className="text-blue-600 mb-1 flex justify-center"><Book size={20} /></div>
-                        <div className="text-2xl font-bold text-gray-900">{selectedUser.stats.booksRead}</div>
+                        <div className="text-2xl font-bold text-gray-900">{selectedUser.stats?.booksRead || 0}</div>
                         <div className="text-xs text-blue-600 font-bold uppercase">Read</div>
                     </div>
                     <div className="bg-yellow-50 p-4 rounded-2xl text-center border border-yellow-100">
                         <div className="text-yellow-600 mb-1 flex justify-center"><Star size={20} /></div>
-                        <div className="text-2xl font-bold text-gray-900">{selectedUser.stats.reviews}</div>
+                        <div className="text-2xl font-bold text-gray-900">{selectedUser.stats?.reviews || 0}</div>
                         <div className="text-xs text-yellow-600 font-bold uppercase">Reviews</div>
                     </div>
                     <div className="bg-red-50 p-4 rounded-2xl text-center border border-red-100">
                         <div className="text-red-600 mb-1 flex justify-center"><Heart size={20} /></div>
-                        <div className="text-2xl font-bold text-gray-900">{selectedUser.stats.favorites}</div>
+                        <div className="text-2xl font-bold text-gray-900">{selectedUser.stats?.favorites || 0}</div>
                         <div className="text-xs text-red-600 font-bold uppercase">Favs</div>
                     </div>
                 </div>
@@ -189,19 +236,19 @@ const ManageUsers = () => {
                     <button 
                         onClick={handleToggleStatus}
                         className={`flex-1 py-3 border rounded-xl font-bold transition-colors ${
-                            selectedUser.status === "Active" 
+                            !selectedUser.isBlocked
                             ? "bg-white border-red-200 text-red-600 hover:bg-red-50" 
                             : "bg-white border-green-200 text-green-600 hover:bg-green-50"
                         }`}
                     >
-                        {selectedUser.status === "Active" ? "Ban User" : "Activate User"}
+                        {!selectedUser.isBlocked ? "Ban User" : "Activate User"}
                     </button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* --- MESSAGE MODAL (NEW) --- */}
+      {/* --- MESSAGE MODAL (Visual Only) --- */}
       {showMessageModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 animate-fade-in">
              <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md relative">
