@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-// 👇 IMPORT FROM YOUR CONFIG TO FIX 401 ERRORS
 import axios from "../../axiosConfig"; 
 import toast from "react-hot-toast";
 import {
@@ -41,7 +40,7 @@ const ManageBooks = () => {
     cover: "",
     pdfUrl: "",
     synopsis: "",
-    // pages removed
+    pages: "", 
   });
 
   // --- EFFECTS ---
@@ -53,7 +52,6 @@ const ManageBooks = () => {
         setBooks(res.data);
       } catch (err) {
         console.error(err);
-        // Don't show toast on 401 to avoid spam, auth middleware handles redirect usually
         if(err.response?.status !== 401) toast.error("Failed to load books");
       }
     };
@@ -152,6 +150,7 @@ const ManageBooks = () => {
       setCurrentBook((prev) => ({
         ...prev,
         synopsis: `AI generated synopsis for ${prev.title}. This is a simulated response.`,
+        pages: prev.pages || Math.floor(Math.random() * 300) + 100 
       }));
       toast.success("Synopsis generated");
     }, 1500);
@@ -166,7 +165,7 @@ const ManageBooks = () => {
     formData.append('category', currentBook.category);
     formData.append('coverImage', currentBook.cover);
     formData.append('description', currentBook.synopsis);
-    // Removed pages append
+    formData.append('pages', currentBook.pages);
 
     if (uploadMode === 'file' && selectedFile) {
         formData.append('pdfFile', selectedFile); 
@@ -189,9 +188,11 @@ const ManageBooks = () => {
           ...currentBook, 
           title: "", 
           author: "", 
+          category: "Fiction", 
           cover: "", 
           pdfUrl: "", 
-          synopsis: ""
+          synopsis: "",
+          pages: "" 
       });
       setSelectedFile(null);
 
@@ -274,6 +275,7 @@ const ManageBooks = () => {
                         <tr className={`text-xs font-bold uppercase tracking-wider border-b ${darkMode ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
                             <th className="p-5 pl-8">Book Details</th>
                             <th className="p-5">Category</th>
+                            <th className="p-5">Pages</th>
                             <th className="p-5">Resources</th>
                             <th className="p-5 text-right pr-8">Actions</th>
                         </tr>
@@ -300,6 +302,9 @@ const ManageBooks = () => {
                                             {book.category}
                                         </span>
                                     </td>
+                                    <td className={`p-5 text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {book.pages || "-"}
+                                    </td>
                                     <td className="p-5">
                                         {book.pdfUrl ? (
                                             <a href={book.pdfUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-500 hover:text-blue-400 flex items-center gap-1">
@@ -322,9 +327,6 @@ const ManageBooks = () => {
                         </AnimatePresence>
                     </tbody>
                 </table>
-                {/* 👇 FIX for Red Hydration Error: 
-                   Moved this OUTSIDE the table. Valid HTML requires div outside of table or inside td.
-                */}
                 {filteredBooks.length === 0 && (
                     <div className="p-10 text-center opacity-50">No books found matching your search.</div>
                 )}
@@ -352,10 +354,18 @@ const ManageBooks = () => {
                                 <input name="author" placeholder="Author" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
                             </div>
                             
-                            {/* Removed Page Count Input Here */}
-                            <select name="category" className={`w-full p-3 rounded-xl border outline-none appearance-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange}>
-                                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <select name="category" className={`w-full p-3 rounded-xl border outline-none appearance-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange}>
+                                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <input 
+                                    type="number" 
+                                    name="pages" 
+                                    placeholder="Page Count" 
+                                    className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} 
+                                    onChange={handleInputChange} 
+                                />
+                            </div>
 
                             <input name="cover" placeholder="Cover Image URL" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
                             
@@ -402,7 +412,7 @@ const ManageBooks = () => {
             )}
         </AnimatePresence>
 
-        {/* CATEGORY MODAL */}
+        {/* CATEGORY MODAL - Unchanged */}
         <AnimatePresence>
             {showCategoryModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

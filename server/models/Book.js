@@ -8,13 +8,13 @@ const bookSchema = new mongoose.Schema({
     coverImage: { type: String },  
     pdfUrl: { type: String },       
 
-    // Dynamic Page Count
+    // ✅ Dynamic Page Count (Matches your Frontend Input)
     pages: { type: Number, required: true, default: 0 }, 
 
-    // 👇 ADDED: Global read counter for "Most Read" section
+    // ✅ Global read counter for "Most Read" & Admin Stats
     reads: { type: Number, default: 0 }, 
 
-    // Summary Stats
+    // ✅ Summary Stats (For sorting by "Top Rated" without scanning all reviews)
     rating: { type: Number, default: 0 },
     numReviews: { type: Number, default: 0 },
 
@@ -28,6 +28,10 @@ const bookSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+// 👇 ADDED: This makes searching FAST in the future
+// It allows you to search across Title, Author, and Category instantly.
+bookSchema.index({ title: 'text', author: 'text', category: 'text' });
 
 const Book = mongoose.model('Book', bookSchema);
 export default Book;

@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+// 👇 1. Import Axios and Toast
+import axios from '../../axiosConfig'; 
+import toast from 'react-hot-toast';
+
 import { 
   People, Book, Eye, ChatSquareQuote, ClockHistory, 
   ArrowRight, MoonStarsFill, SunFill, Activity 
@@ -10,29 +14,102 @@ import * as THREE from 'three';
 const AdminDashboard = () => {
   // --- STATE ---
   const [darkMode, setDarkMode] = useState(false);
+  const [loading, setLoading] = useState(true); // Loading state
   
   // Vanta State
   const vantaRef = useRef(null);
   const [vantaEffect, setVantaEffect] = useState(null);
 
-  // --- MOCK DATA ---
-  const stats = [
-    { id: 1, title: "Total Books", value: "1,240", icon: <Book size={24} />, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    { id: 2, title: "Active Readers", value: "350", icon: <People size={24} />, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-    { id: 3, title: "Total Reads", value: "15.2k", icon: <Eye size={24} />, color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20" },
-    { id: 4, title: "Reviews", value: "850", icon: <ChatSquareQuote size={24} />, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+  // --- DYNAMIC DATA STATE ---
+  const [dashboardStats, setDashboardStats] = useState({
+    counts: {
+        totalBooks: 0,
+        activeReaders: 0,
+        totalReads: 0,
+        totalReviews: 0
+    },
+    recentActivity: []
+  });
+
+  // --- API CALL ---
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { data } = await axios.get('/admin/stats');
+        setDashboardStats(data);
+        setLoading(false);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to load dashboard stats");
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // --- HELPER: TIME AGO ---
+  // Converts date string to "2 hours ago", "Just now", etc.
+  const timeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " mins ago";
+    return "Just now";
+  };
+
+  // --- DATA MAPPING ---
+  // Map API counts to UI Cards
+  const statsCards = [
+    { 
+        id: 1, 
+        title: "Total Books", 
+        value: dashboardStats.counts.totalBooks, 
+        icon: <Book size={24} />, 
+        color: "text-blue-500", 
+        bg: "bg-blue-500/10", 
+        border: "border-blue-500/20" 
+    },
+    { 
+        id: 2, 
+        title: "Active Readers", 
+        value: dashboardStats.counts.activeReaders, 
+        icon: <People size={24} />, 
+        color: "text-purple-500", 
+        bg: "bg-purple-500/10", 
+        border: "border-purple-500/20" 
+    },
+    { 
+        id: 3, 
+        title: "Total Reads", 
+        value: dashboardStats.counts.totalReads, // You might want to format this (e.g. 1.5k) if number is huge
+        icon: <Eye size={24} />, 
+        color: "text-green-500", 
+        bg: "bg-green-500/10", 
+        border: "border-green-500/20" 
+    },
+    { 
+        id: 4, 
+        title: "Reviews", 
+        value: dashboardStats.counts.totalReviews, 
+        icon: <ChatSquareQuote size={24} />, 
+        color: "text-orange-500", 
+        bg: "bg-orange-500/10", 
+        border: "border-orange-500/20" 
+    },
   ];
 
-  const recentActivity = [
-    { id: 1, user: "John Doe", book: "The Great Gatsby", action: "Started Reading", date: "Just now", status: "Online", statusColor: "bg-green-500", actionBg: "bg-blue-100 text-blue-700" },
-    { id: 2, user: "Jane Smith", book: "Clean Code", action: "Rated 5 Stars", date: "2 mins ago", status: "Offline", statusColor: "bg-gray-400", actionBg: "bg-yellow-100 text-yellow-700" },
-    { id: 3, user: "Mike Ross", book: "Suits Vol. 1", action: "Commented", date: "1 hour ago", status: "Online", statusColor: "bg-green-500", actionBg: "bg-gray-100 text-gray-700" },
-    { id: 4, user: "Rachel Zane", book: "Legal Ethics", action: "Added to Favorites", date: "3 hours ago", status: "Offline", statusColor: "bg-gray-400", actionBg: "bg-pink-100 text-pink-700" },
-  ];
-
-  // --- EFFECTS ---
-
-  // 1. Initialize Vanta.js
+  // --- VANTA EFFECTS (Kept Original) ---
   useEffect(() => {
     if (!vantaEffect && vantaRef.current) {
       setVantaEffect(FOG({
@@ -55,7 +132,6 @@ const AdminDashboard = () => {
     return () => { if (vantaEffect) vantaEffect.destroy(); };
   }, [vantaEffect]);
 
-  // 2. Handle Dark Mode Colors
   useEffect(() => {
     if (vantaEffect) {
       if (darkMode) {
@@ -78,7 +154,6 @@ const AdminDashboard = () => {
     }
   }, [darkMode, vantaEffect]);
 
-  // Animations
   const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
@@ -108,7 +183,6 @@ const AdminDashboard = () => {
             </motion.p>
           </div>
 
-          {/* Dark Mode Toggle */}
           <motion.button
               whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
               onClick={() => setDarkMode(!darkMode)}
@@ -122,7 +196,7 @@ const AdminDashboard = () => {
 
         {/* STATS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {stats.map((stat) => (
+          {statsCards.map((stat) => (
             <motion.div 
               variants={itemVariants}
               whileHover={{ y: -5 }}
@@ -136,7 +210,9 @@ const AdminDashboard = () => {
               </div>
               <div>
                 <h3 className={`text-xs font-bold uppercase tracking-wider mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{stat.title}</h3>
-                <p className="text-3xl font-black">{stat.value}</p>
+                <p className="text-3xl font-black">
+                    {loading ? "..." : stat.value.toLocaleString()}
+                </p>
               </div>
             </motion.div>
           ))}
@@ -164,30 +240,45 @@ const AdminDashboard = () => {
                     <th className="p-6">Content</th>
                     <th className="p-6">Activity</th>
                     <th className="p-6">Time</th>
-                    <th className="p-6">Status</th>
+                    <th className="p-6">Type</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${darkMode ? 'divide-gray-800' : 'divide-gray-200'}`}>
-                  {recentActivity.map((item) => (
-                    <tr key={item.id} className={`transition-colors ${darkMode ? 'hover:bg-gray-800/40' : 'hover:bg-white/50'}`}>
-                      <td className="p-6 font-bold">{item.user}</td>
-                      <td className={`p-6 font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{item.book}</td>
-                      <td className="p-6">
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${item.actionBg}`}>
-                            {item.action}
-                        </span>
-                      </td>
-                      <td className={`p-6 text-sm font-medium flex items-center gap-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                        <ClockHistory size={14} /> {item.date}
-                      </td>
-                      <td className="p-6">
-                        <div className="flex items-center gap-2">
-                            <span className={`w-2.5 h-2.5 rounded-full ${item.statusColor} animate-pulse shadow-md`}></span>
-                            <span className={`text-sm font-bold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{item.status}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {loading ? (
+                       <tr><td colSpan="5" className="p-8 text-center opacity-50">Loading activity...</td></tr>
+                  ) : dashboardStats.recentActivity.length === 0 ? (
+                       <tr><td colSpan="5" className="p-8 text-center opacity-50">No recent activity.</td></tr>
+                  ) : (
+                    dashboardStats.recentActivity.map((item) => (
+                        <tr key={item.id} className={`transition-colors ${darkMode ? 'hover:bg-gray-800/40' : 'hover:bg-white/50'}`}>
+                        <td className="p-6 font-bold">{item.user}</td>
+                        <td className={`p-6 font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{item.content}</td>
+                        <td className="p-6">
+                            {/* Dynamic Badge Coloring based on Action Type */}
+                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                item.type === 'user' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-orange-100 text-orange-700'
+                            }`}>
+                                {item.action}
+                            </span>
+                        </td>
+                        <td className={`p-6 text-sm font-medium flex items-center gap-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            <ClockHistory size={14} /> {timeAgo(item.date)}
+                        </td>
+                        <td className="p-6">
+                            <div className="flex items-center gap-2">
+                                <span className={`w-2.5 h-2.5 rounded-full ${
+                                    item.type === 'user' ? 'bg-green-500' : 'bg-purple-500'
+                                } animate-pulse shadow-md`}></span>
+                                <span className={`text-sm font-bold uppercase ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {item.type}
+                                </span>
+                            </div>
+                        </td>
+                        </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
