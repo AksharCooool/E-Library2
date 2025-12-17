@@ -234,12 +234,15 @@ const Profile = () => {
                     {/* 2. ACTIVITY TAB */}
                     {activeTab === 'activity' && (
                         <motion.div key="activity" variants={tabVariants} initial="hidden" animate="visible" exit="exit" className="bg-white/90 p-8 rounded-3xl shadow-soft min-h-[400px]">
-                             <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><ClockHistory className="text-blue-500"/> Activity Timeline</h3>
-                             
-                             {sortedActivity.length > 0 ? (
+                            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><ClockHistory className="text-blue-500"/> Activity Timeline</h3>
+                            
+                            {sortedActivity.length > 0 ? (
                                 <div className="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
                                     {sortedActivity.map((activity, index) => {
-                                        const percentage = Math.round((activity.currentPage / activity.totalPages) * 100) || 0;
+                                        
+                                        // 🟢 NEW (FIXED): Calculate based on Book Pages
+                                        const totalPages = activity.bookId.pages || 100;
+                                        const percentage = Math.round((activity.currentPage / totalPages) * 100) || 0;
                                         
                                         return (
                                             <div key={index} className="relative pl-12">

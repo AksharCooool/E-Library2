@@ -53,7 +53,10 @@ const UserDashboard = () => {
             .filter(item => item.bookId !== null) // Safety check if book was deleted
             .map(item => {
                 const current = item.currentPage || 1;
-                const total = item.totalPages || 100;
+                
+                // 👇 FIXED: Get total pages from the Book object, not the progress item
+                const total = item.bookId.pages || 100; 
+
                 const percent = Math.round((current / total) * 100);
 
                 return {
