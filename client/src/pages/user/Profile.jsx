@@ -96,11 +96,11 @@ const Profile = () => {
 
   // --- HELPERS (FIXED DATE FORMATTER) ---
   const formatDate = (dateString) => {
-      if (!dateString) return 'N/A';
+      if (!dateString) return null;
       const date = new Date(dateString);
       // Check if date is valid
       return isNaN(date.getTime()) 
-        ? 'N/A' 
+        ? null 
         : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
@@ -119,10 +119,14 @@ const Profile = () => {
     ? "https://cdn-icons-png.flaticon.com/512/6997/6997662.png" 
     : "https://cdn-icons-png.flaticon.com/512/236/236831.png";
 
-  // Sort Activity: Most recently read first
+  // 👇 FIXED: Sort Activity safely (Newest first)
   const sortedActivity = (user.readingProgress || [])
     .filter(item => item.bookId) 
-    .sort((a, b) => new Date(b.lastRead) - new Date(a.lastRead));
+    .sort((a, b) => {
+        const dateA = new Date(a.lastRead || 0);
+        const dateB = new Date(b.lastRead || 0);
+        return dateB - dateA;
+    });
 
   const tabVariants = {
     hidden: { opacity: 0, x: 20 },
@@ -234,16 +238,21 @@ const Profile = () => {
                     {/* 2. ACTIVITY TAB */}
                     {activeTab === 'activity' && (
                         <motion.div key="activity" variants={tabVariants} initial="hidden" animate="visible" exit="exit" className="bg-white/90 p-8 rounded-3xl shadow-soft min-h-[400px]">
-                            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><ClockHistory className="text-blue-500"/> Activity Timeline</h3>
-                            
-                            {sortedActivity.length > 0 ? (
+                             <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><ClockHistory className="text-blue-500"/> Activity Timeline</h3>
+                             
+                             {sortedActivity.length > 0 ? (
                                 <div className="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
                                     {sortedActivity.map((activity, index) => {
                                         
-                                        // 🟢 NEW (FIXED): Calculate based on Book Pages
+                                        // 🟢 FIX 1: Correct Pages Logic
                                         const totalPages = activity.bookId.pages || 100;
                                         const percentage = Math.round((activity.currentPage / totalPages) * 100) || 0;
                                         
+                                        // 🟢 FIX 2: Correct Date Logic
+                                        const dateLabel = formatDate(activity.lastRead);
+                                        const timeLabel = formatTime(activity.lastRead);
+                                        const displayTime = dateLabel ? `${dateLabel} at ${timeLabel}` : "Recently Accessed";
+
                                         return (
                                             <div key={index} className="relative pl-12">
                                                 <div className="absolute left-2 top-2 w-4 h-4 bg-blue-100 border-2 border-blue-500 rounded-full z-10"></div>
@@ -255,7 +264,7 @@ const Profile = () => {
 
                                                     <div className="flex-1">
                                                         <p className="text-xs text-gray-400 font-bold uppercase mb-0.5">
-                                                            {formatDate(activity.lastRead)} at {formatTime(activity.lastRead)}
+                                                            {displayTime}
                                                         </p>
                                                         <h4 className="font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => handleReadBook(activity.bookId._id)}>
                                                             Read <span className="text-blue-600">{activity.bookId.title}</span>
@@ -345,7 +354,7 @@ const Profile = () => {
                                         <CheckCircle /> Save Changes
                                     </button>
                                 </div>
-                            </form>
+                             </form>
                         </motion.div>
                     )}
 

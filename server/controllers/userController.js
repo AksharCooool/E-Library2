@@ -1,12 +1,11 @@
 import User from "../models/User.js";
 import Review from "../models/Review.js"; 
-import Book from "../models/Book.js"; // ✅ ADDED: Import Book model to update read counts
+import Book from "../models/Book.js"; 
 import asyncHandler from "express-async-handler";
 import bcrypt from "bcryptjs";
 
 // @desc    Get Current User Profile & Stats
 // @route   GET /api/users/profile
-// @access  Private
 export const getUserProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id)
     .populate("favorites")
@@ -15,7 +14,7 @@ export const getUserProfile = asyncHandler(async (req, res) => {
   if (user) {
     const reviewsCount = await Review.countDocuments({ user: req.user._id });
 
-    // Filter Duplicates in Progress
+    // Filter Duplicates
     const uniqueProgressMap = new Map();
     if (user.readingProgress) {
         user.readingProgress.forEach((item) => {
@@ -34,11 +33,9 @@ export const getUserProfile = asyncHandler(async (req, res) => {
       role: user.role,
       gender: user.gender,
       createdAt: user.createdAt, 
-      
       favoritesCount: user.favorites.length,
       booksStarted: uniqueProgressList.length,
       reviewsCount: reviewsCount,
-
       favorites: user.favorites, 
       readingProgress: uniqueProgressList 
     });
@@ -48,35 +45,34 @@ export const getUserProfile = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Update Reading Progress & Increment Global Read Count
+// @desc    Update Reading Progress
 // @route   PUT /api/users/progress
-// @access  Private
 export const updateProgress = asyncHandler(async (req, res) => {
   const { bookId, currentPage, totalPages } = req.body;
   const user = await User.findById(req.user._id);
 
   if (user) {
-    // ✅ 1. Check if the user is starting this book for the first time
+    // 1. Check if first time reading
     const alreadyStarted = user.readingProgress.some(
         (p) => p.bookId.toString() === bookId
     );
 
-    // ✅ 2. If it's a new start, increment the global 'reads' field in the Book document
+    // 2. Increment global read count if new
     if (!alreadyStarted) {
         await Book.findByIdAndUpdate(bookId, { $inc: { reads: 1 } });
     }
 
-    // 3. Cleanup duplicates (remove old entries for this specific book)
+    // 3. Remove OLD entry (so we can push the new one to the end)
     user.readingProgress = user.readingProgress.filter(
       (p) => p.bookId.toString() !== bookId
     );
 
-    // 4. Add the new/updated progress
+    // 4. Push NEW entry with current Timestamp
     user.readingProgress.push({ 
         bookId, 
         currentPage, 
         totalPages,
-        lastRead: Date.now()
+        lastRead: new Date() // <--- Ensures time is saved!
     });
 
     await user.save();
@@ -87,7 +83,7 @@ export const updateProgress = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Toggle Favorite (Add/Remove)
+// @desc    Toggle Favorite
 // @route   PUT /api/users/favorites/:id
 export const toggleFavorite = asyncHandler(async (req, res) => {
   const bookId = req.params.id;
@@ -109,7 +105,7 @@ export const toggleFavorite = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get User Favorites
+// @desc    Get Favorites
 // @route   GET /api/users/favorites
 export const getFavorites = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate("favorites");
@@ -121,7 +117,7 @@ export const getFavorites = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Update User Profile
+// @desc    Update Profile
 // @route   PUT /api/users/profile
 export const updateUserProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
@@ -146,8 +142,8 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
 
     const updatedUser = await user.save();
     
+    // Recalculate stats for the response
     const reviewsCount = await Review.countDocuments({ user: updatedUser._id });
-
     const uniqueProgressMap = new Map();
     if (updatedUser.readingProgress) {
         updatedUser.readingProgress.forEach(item => {
