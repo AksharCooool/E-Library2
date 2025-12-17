@@ -93,7 +93,7 @@ const Home = () => {
     }
   }, [darkMode, vantaEffect]);
 
-  // --- 4. FILTERING ---
+  // --- 4. FILTERING & SORTING ---
   const filteredBooks = books.filter(book => {
     if (!book) return false;
     const title = (book.title || "").toLowerCase();
@@ -108,13 +108,16 @@ const Home = () => {
 
   const trendingBooks = books.filter(b => b?.isTrending);
 
+  // 👇 DYNAMIC SORT: Sort by 'reads' (Descending)
+  const mostReadBooks = [...books].sort((a, b) => (b.reads || 0) - (a.reads || 0)).slice(0, 3);
+
   // --- HANDLERS ---
   const openBookDetails = (bookId) => navigate(`/dashboard/book/${bookId}`);
   const handleRead = (e, bookId) => { e.stopPropagation(); navigate(`/dashboard/read/${bookId}`); };
   
   const toggleFavorite = async (e, bookId) => {
     e.stopPropagation();
-    const user = localStorage.getItem('user');
+    const user = localStorage.getItem('userInfo'); // Use 'userInfo' here
     if (!user) return toast.error("Please login to manage favorites");
 
     try {
@@ -188,13 +191,15 @@ const Home = () => {
                     </div>
                 </div>
 
+                {/* --- DYNAMIC MOST READ SECTION --- */}
                 <div className={`p-6 rounded-3xl shadow-xl backdrop-blur-md border h-fit ${darkMode ? 'bg-gray-800/40 border-gray-700' : 'bg-white/60 border-white'}`}>
                     <div className="flex items-center gap-2 mb-6">
                         <GraphUpArrow className="text-blue-500" size={20} />
                         <h2 className="text-xl font-bold">Most Read</h2>
                     </div>
                     <div className="space-y-4">
-                        {books.slice(0, 3).map((book, index) => (
+                        {/* 👇 Use mostReadBooks instead of slicing unsorted books */}
+                        {mostReadBooks.map((book, index) => (
                             <div key={book._id} onClick={() => openBookDetails(book._id)} className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-white'}`}>
                                 <span className="text-2xl font-black opacity-30">0{index + 1}</span>
                                 <img src={book.coverImage} alt={book.title} className="w-10 h-14 object-cover rounded shadow-sm" />
@@ -225,9 +230,8 @@ const Home = () => {
                )}
             </div>
 
-            {/* --- GRID CONTAINER (REMOVED 'layout' PROP) --- */}
+            {/* --- GRID CONTAINER --- */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {/* REMOVED 'mode="popLayout"' - STANDARD ANIMATION ONLY */}
                 <AnimatePresence>
                     {filteredBooks.length > 0 ? (
                         filteredBooks.map((book) => (

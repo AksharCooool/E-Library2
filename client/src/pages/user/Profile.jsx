@@ -25,7 +25,7 @@ const Profile = () => {
   // --- 1. FETCH DATA ---
   const fetchUserProfile = async () => {
     try {
-      const { data } = await axios.get('/auth/me');
+      const { data } = await axios.get('/auth/me'); 
       setUser(data);
       
       // Initialize form data with fetched user info
@@ -33,13 +33,17 @@ const Profile = () => {
           name: data.name,
           email: data.email,
           gender: data.gender || 'male',
-          password: '' // Keep password empty initially
+          password: '' 
       });
       
       setLoading(false);
     } catch (error) {
       console.error("Failed to fetch profile", error);
-      navigate('/login');
+      // If unauthorized, log them out locally
+      if(error.response?.status === 401) {
+          localStorage.removeItem('userInfo');
+          navigate('/login');
+      }
     }
   };
 
@@ -53,32 +57,34 @@ const Profile = () => {
       e.preventDefault();
       try {
           // Send update request
-          await axios.put('/users/profile', formData);
+          const { data } = await axios.put('/users/profile', formData);
+          
+          // Update Local Storage with new name/token if changed
+          if(data.token) {
+              const currentInfo = JSON.parse(localStorage.getItem('userInfo'));
+              localStorage.setItem('userInfo', JSON.stringify({ ...currentInfo, ...data }));
+          }
+
           toast.success("Profile updated successfully!");
           
-          // Refresh user data to update UI (Name, Avatar, etc.)
+          // Refresh user data to update UI 
           fetchUserProfile();
       } catch (error) {
           toast.error(error.response?.data?.message || "Update failed");
       }
   };
 
-  const handleLogout = async () => {
-    try {
-        await axios.post('/auth/logout');
-        localStorage.removeItem('user');
-        toast.success("Logged out");
-        navigate('/login');
-    } catch (error) {
-        toast.error("Logout failed");
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('userInfo'); 
+    toast.success("Logged out successfully");
+    navigate('/login');
   };
 
   const handleRemoveFavorite = async (bookId) => {
       try {
           await axios.put(`/users/favorites/${bookId}`);
           toast.success("Removed from favorites");
-          fetchUserProfile(); // Refresh list
+          fetchUserProfile(); 
       } catch (error) {
           toast.error("Failed to remove");
       }
@@ -88,9 +94,23 @@ const Profile = () => {
       navigate(`/dashboard/read/${bookId}`);
   };
 
-  // --- HELPERS ---
-  const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const formatTime = (dateString) => new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  // --- HELPERS (FIXED DATE FORMATTER) ---
+  const formatDate = (dateString) => {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      // Check if date is valid
+      return isNaN(date.getTime()) 
+        ? 'N/A' 
+        : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatTime = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) 
+        ? '' 
+        : date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-400">Loading Profile...</div>;
 
@@ -100,7 +120,6 @@ const Profile = () => {
     : "https://cdn-icons-png.flaticon.com/512/236/236831.png";
 
   // Sort Activity: Most recently read first
-  // Filter out any null bookIds to prevent crashes if a book was deleted
   const sortedActivity = (user.readingProgress || [])
     .filter(item => item.bookId) 
     .sort((a, b) => new Date(b.lastRead) - new Date(a.lastRead));
@@ -143,12 +162,16 @@ const Profile = () => {
                 </div>
                 <div className="flex gap-8 justify-center md:justify-start">
                     <div className="text-center">
-                        <p className="text-2xl font-black text-gray-900">{user.favorites?.length || 0}</p>
+                        <p className="text-2xl font-black text-gray-900">{user.favoritesCount || 0}</p>
                         <p className="text-xs text-gray-400 font-bold uppercase">Favorites</p>
                     </div>
                     <div className="text-center">
-                        <p className="text-2xl font-black text-gray-900">{user.readingProgress?.length || 0}</p>
+                        <p className="text-2xl font-black text-gray-900">{user.booksStarted || 0}</p>
                         <p className="text-xs text-gray-400 font-bold uppercase">Books Started</p>
+                    </div>
+                    <div className="text-center">
+                        <p className="text-2xl font-black text-gray-900">{user.reviewsCount || 0}</p>
+                        <p className="text-xs text-gray-400 font-bold uppercase">Reviews</p>
                     </div>
                 </div>
             </div>
@@ -208,7 +231,7 @@ const Profile = () => {
                         </motion.div>
                     )}
 
-                    {/* 2. ACTIVITY TAB (Now Dynamic) */}
+                    {/* 2. ACTIVITY TAB */}
                     {activeTab === 'activity' && (
                         <motion.div key="activity" variants={tabVariants} initial="hidden" animate="visible" exit="exit" className="bg-white/90 p-8 rounded-3xl shadow-soft min-h-[400px]">
                              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><ClockHistory className="text-blue-500"/> Activity Timeline</h3>
@@ -220,7 +243,6 @@ const Profile = () => {
                                         
                                         return (
                                             <div key={index} className="relative pl-12">
-                                                {/* Timeline Dot */}
                                                 <div className="absolute left-2 top-2 w-4 h-4 bg-blue-100 border-2 border-blue-500 rounded-full z-10"></div>
                                                 
                                                 <div className="flex gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:shadow-sm transition-all items-center">
@@ -258,7 +280,7 @@ const Profile = () => {
                         </motion.div>
                     )}
 
-                    {/* 3. SETTINGS TAB (Now Working) */}
+                    {/* 3. SETTINGS TAB */}
                     {activeTab === 'settings' && (
                         <motion.div key="settings" variants={tabVariants} initial="hidden" animate="visible" exit="exit" className="bg-white/90 p-8 rounded-3xl shadow-soft min-h-[400px]">
                              <h3 className="text-xl font-bold mb-6">Account Settings</h3>

@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from '../../axiosConfig'; // <--- USE YOUR AXIOS CONFIG
+import axios from '../../axiosConfig'; 
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import NET from 'vanta/dist/vanta.net.min';
 import * as THREE from 'three';
 import { 
-  Book, Star, Heart, BellFill, 
+  Book, Star, Heart, 
   SunFill, MoonStarsFill, BookHalf, PlayFill
 } from 'react-bootstrap-icons';
 
@@ -36,32 +35,20 @@ const UserDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [user, setUser] = useState(null);
-  const [readingList, setReadingList] = useState([]); // Stores dynamic reading progress
+  const [readingList, setReadingList] = useState([]); 
   
   // Vanta Refs
   const vantaRef = useRef(null);
   const [vantaEffect, setVantaEffect] = useState(null);
 
-  // Notifications (Static for now)
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: "Welcome!", content: "Books you start reading will appear in your dashboard.", type: "info", read: false },
-    { id: 2, title: "Tip", content: "Click 'Read' on any book to resume where you left off.", type: "alert", read: false },
-  ]);
-  const [showNotifications, setShowNotifications] = useState(false); 
-  const [selectedMessage, setSelectedMessage] = useState(null); 
-
-  const unreadList = notifications.filter(n => !n.read);
-
   // --- 1. FETCH DATA FROM API ---
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data } = await axios.get('/auth/me'); // Gets User + Favorites + ReadingProgress
+        const { data } = await axios.get('/auth/me'); // Gets User + Favorites + ReadingProgress + ReviewsCount
         setUser(data);
         
         // --- PROCESS READING LIST ---
-        // Map the backend structure to a flat object for the table
-        // Backend returns: [{ bookId: { title, cover... }, currentPage: 5, totalPages: 100 }]
         const activeReads = (data.readingProgress || [])
             .filter(item => item.bookId !== null) // Safety check if book was deleted
             .map(item => {
@@ -132,19 +119,13 @@ const UserDashboard = () => {
       navigate(`/dashboard/read/${bookId}`);
   };
 
-  const handleNotificationClick = (note) => {
-    setSelectedMessage(note); 
-    setShowNotifications(false); 
-    setNotifications(notifications.map(n => n.id === note.id ? { ...n, read: true } : n));
-  };
-
   const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.15 } } };
   const itemVariants = { hidden: { y: 30, opacity: 0, scale: 0.95 }, visible: { y: 0, opacity: 1, scale: 1 } };
 
   if (loading) return <CustomLoader />;
 
   return (
-    <div className={`relative min-h-screen w-full overflow-hidden transition-colors duration-500 font-sans ${darkMode ? 'text-white' : 'text-gray-900'}`} onClick={() => setShowNotifications(false)}>
+    <div className={`relative min-h-screen w-full overflow-hidden transition-colors duration-500 font-sans ${darkMode ? 'text-white' : 'text-gray-900'}`}>
       
       {/* BACKGROUND */}
       <div ref={vantaRef} className="fixed inset-0 z-0 pointer-events-none opacity-80" />
@@ -172,37 +153,6 @@ const UserDashboard = () => {
             >
               {darkMode ? <SunFill size={20} /> : <MoonStarsFill size={20} />}
             </button>
-
-            {/* Notifications */}
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button 
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className={`p-3 rounded-full shadow-lg backdrop-blur-md transition-all hover:scale-110 ${darkMode ? 'bg-gray-800 text-white border border-gray-700' : 'bg-white text-gray-600 border border-gray-100'}`}
-              >
-                  <BellFill size={20} />
-                  {unreadList.length > 0 && <span className="absolute top-1 right-1 h-3 w-3 bg-red-500 rounded-full animate-pulse border-2 border-white"></span>}
-              </button>
-              
-              <AnimatePresence>
-                {showNotifications && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                        className={`absolute right-0 mt-4 w-80 rounded-2xl shadow-2xl border overflow-hidden z-50 backdrop-blur-xl ${darkMode ? 'bg-gray-900/95 border-gray-700 text-gray-200' : 'bg-white/95 border-gray-100 text-gray-900'}`}
-                    >
-                         <div className="max-h-64 overflow-y-auto p-2">
-                            {unreadList.length === 0 ? <p className="p-4 text-center text-sm opacity-50">No new notifications</p> : 
-                             unreadList.map(n => (
-                                <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 mb-2 rounded-xl cursor-pointer flex gap-3 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
-                                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-                                    <div><p className="text-sm font-bold">{n.title}</p><p className="text-xs opacity-60">{n.content}</p></div>
-                                </div>
-                             ))
-                            }
-                         </div>
-                    </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </motion.div>
         </div>
 
@@ -211,8 +161,8 @@ const UserDashboard = () => {
           {[
               // Reading List Length = Books Started
               { title: "Books Started", value: readingList.length, icon: <Book size={24} />, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-              // Reviews (Static for now)
-              { title: "Reviews", value: "0", icon: <Star size={24} />, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
+              // Reviews (Dynamic)
+              { title: "Reviews", value: user?.reviewsCount || 0, icon: <Star size={24} />, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
               // Favorites (Dynamic)
               { title: "Favorites", value: user?.favorites?.length || 0, icon: <Heart size={24} />, color: "text-pink-500", bg: "bg-pink-500/10", border: "border-pink-500/20" }
           ].map((stat, index) => (
@@ -303,27 +253,6 @@ const UserDashboard = () => {
             </table>
           </div>
         </motion.div>
-
-        {/* --- MODAL --- */}
-        <AnimatePresence>
-          {selectedMessage && (
-              <motion.div 
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[60]"
-                  onClick={() => setSelectedMessage(null)}
-              >
-                  <motion.div 
-                      initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 50 }}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`p-8 rounded-3xl shadow-2xl w-full max-w-lg relative ${darkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white'}`}
-                  >
-                      <h2 className="text-2xl font-bold mb-4">{selectedMessage.title}</h2>
-                      <p className={`mb-6 leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{selectedMessage.content}</p>
-                      <button onClick={() => setSelectedMessage(null)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold w-full">Close</button>
-                  </motion.div>
-              </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
     </div>
   );

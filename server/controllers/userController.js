@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import Review from "../models/Review.js"; 
+import Book from "../models/Book.js"; // ✅ ADDED: Import Book model to update read counts
 import asyncHandler from "express-async-handler";
 import bcrypt from "bcryptjs";
 
@@ -12,20 +13,14 @@ export const getUserProfile = asyncHandler(async (req, res) => {
     .populate("readingProgress.bookId");
 
   if (user) {
-    // 1. Count Reviews (Checks the 'reviews' collection)
     const reviewsCount = await Review.countDocuments({ user: req.user._id });
 
-    // 2. FILTER DUPLICATES (Fixes the "Double Results" bug)
-    // We create a Map to keep only the latest entry for each book
+    // Filter Duplicates in Progress
     const uniqueProgressMap = new Map();
-    
     if (user.readingProgress) {
         user.readingProgress.forEach((item) => {
-            // Only add if book exists (in case book was deleted)
             if (item.bookId) {
-                // Determine ID (handle populated vs unpopulated)
                 const bId = item.bookId._id ? item.bookId._id.toString() : item.bookId.toString();
-                // Map overwrites previous keys, so we keep the last one.
                 uniqueProgressMap.set(bId, item);
             }
         });
@@ -38,13 +33,12 @@ export const getUserProfile = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.role,
       gender: user.gender,
+      createdAt: user.createdAt, 
       
-      // Stats
       favoritesCount: user.favorites.length,
       booksStarted: uniqueProgressList.length,
       reviewsCount: reviewsCount,
 
-      // Data lists
       favorites: user.favorites, 
       readingProgress: uniqueProgressList 
     });
@@ -54,20 +48,30 @@ export const getUserProfile = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Update Reading Progress
+// @desc    Update Reading Progress & Increment Global Read Count
 // @route   PUT /api/users/progress
+// @access  Private
 export const updateProgress = asyncHandler(async (req, res) => {
   const { bookId, currentPage, totalPages } = req.body;
   const user = await User.findById(req.user._id);
 
   if (user) {
-    // 1. CLEANUP: Remove ANY existing progress for this specific book
-    // This wipes out duplicates instantly before adding the new one
+    // ✅ 1. Check if the user is starting this book for the first time
+    const alreadyStarted = user.readingProgress.some(
+        (p) => p.bookId.toString() === bookId
+    );
+
+    // ✅ 2. If it's a new start, increment the global 'reads' field in the Book document
+    if (!alreadyStarted) {
+        await Book.findByIdAndUpdate(bookId, { $inc: { reads: 1 } });
+    }
+
+    // 3. Cleanup duplicates (remove old entries for this specific book)
     user.readingProgress = user.readingProgress.filter(
       (p) => p.bookId.toString() !== bookId
     );
 
-    // 2. Add the new, single entry
+    // 4. Add the new/updated progress
     user.readingProgress.push({ 
         bookId, 
         currentPage, 
@@ -105,7 +109,7 @@ export const toggleFavorite = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get User Favorites (RESTORED TO FIX CRASH)
+// @desc    Get User Favorites
 // @route   GET /api/users/favorites
 export const getFavorites = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate("favorites");
@@ -142,10 +146,8 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
 
     const updatedUser = await user.save();
     
-    // Recount stats for response
     const reviewsCount = await Review.countDocuments({ user: updatedUser._id });
 
-    // Deduplicate progress for response
     const uniqueProgressMap = new Map();
     if (updatedUser.readingProgress) {
         updatedUser.readingProgress.forEach(item => {
@@ -159,6 +161,7 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
       email: updatedUser.email,
       role: updatedUser.role,
       gender: updatedUser.gender,
+      createdAt: updatedUser.createdAt, 
       favoritesCount: updatedUser.favorites.length,
       booksStarted: uniqueProgressMap.size,
       reviewsCount: reviewsCount,

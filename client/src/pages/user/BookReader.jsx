@@ -18,6 +18,9 @@ const BookReader = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const chatContainerRef = useRef(null);
+  
+  // 👇 FIX: Use a ref to prevent double toast notifications
+  const hasResumed = useRef(false);
 
   // ---------- STATE ----------
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -36,25 +39,34 @@ const BookReader = () => {
   // ---------- 1. FETCH BOOK & PROGRESS ----------
   useEffect(() => {
     const initializeReader = async () => {
-      // 1. SET PDF URL (Do this first so book loads immediately)
-      // Point directly to your backend stream
+      // 1. SET PDF URL
       setPdfUrl(`http://localhost:5000/api/books/stream/${id}`);
 
-      // 2. TRY TO FETCH SAVED PROGRESS (Don't crash if this fails)
+      // 2. FETCH SAVED PROGRESS
       try {
-        // Try getting profile (Assuming you have a GET /api/users/profile route)
-        // If not, this block handles the error gracefully
-        const { data: user } = await axios.get('/users/profile').catch(() => ({ data: null }));
+        const { data: user } = await axios.get('/users/profile');
         
         if (user && user.readingProgress) {
-            const savedProgress = user.readingProgress.find(p => p.bookId === id || (p.bookId && p.bookId._id === id));
+            // Find progress for this book
+            const savedProgress = user.readingProgress.find(p => 
+              (p.bookId?._id === id) || (p.bookId === id)
+            );
+
             if (savedProgress && savedProgress.currentPage > 1) {
                 setPageNumber(savedProgress.currentPage);
-                toast.success(`Resumed at page ${savedProgress.currentPage}`, { position: 'top-center' });
+                
+                // 👇 ONLY SHOW TOAST IF NOT ALREADY SHOWN
+                if (!hasResumed.current) {
+                  toast.success(`Resumed at page ${savedProgress.currentPage}`, { 
+                    position: 'top-center',
+                    id: 'resume-toast' // Use a static ID to prevent duplicates anyway
+                  });
+                  hasResumed.current = true;
+                }
             }
         }
       } catch (error) {
-        console.warn("Could not load reading progress (User might not be logged in)");
+        console.warn("Reading progress not loaded");
       }
     };
 
@@ -64,13 +76,13 @@ const BookReader = () => {
   // ---------- 2. SYNC PROGRESS TO DB ----------
   const updateDatabase = async (newPage, total) => {
       try {
+          // This call triggers the global 'reads' increment in the backend
           await axios.put('/users/progress', {
               bookId: id,
               currentPage: newPage,
               totalPages: total || numPages 
           });
       } catch (error) {
-          // Silently fail if user is not logged in
           console.error("Failed to save progress", error);
       }
   };
@@ -78,7 +90,8 @@ const BookReader = () => {
   // ---------- PDF HANDLERS ----------
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
-    // Don't save page 1 immediately to avoid overwriting progress if user resumes at pg 50
+    // Trigger initial progress save to mark book as "Started" in dashboard
+    updateDatabase(pageNumber, numPages);
   };
 
   const changePage = (offset) => {
@@ -86,12 +99,12 @@ const BookReader = () => {
           const newPage = prevPage + offset;
           if (newPage < 1 || newPage > numPages) return prevPage;
           
-          updateDatabase(newPage, numPages); // Save progress
+          updateDatabase(newPage, numPages);
           return newPage;
       });
   };
 
-  // ---------- AI FEATURES ----------
+  // ---------- AI FEATURES (Simulated) ----------
   const addMessage = (role, text) => {
     setChatHistory(prev => [...prev, { role, text }]);
   };
@@ -106,22 +119,15 @@ const BookReader = () => {
 
   const handleSummarize = () => {
     addMessage('user', "Summarize this page for me.");
-    simulateAiResponse(
-      `Summary of page ${pageNumber}:\n• Key ideas explained\n• Important concepts highlighted\n• Easy-to-understand breakdown`
-    );
+    simulateAiResponse(`Summary of page ${pageNumber}: The content focuses on fundamental concepts and practical applications relevant to the current chapter.`);
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!userQuestion.trim()) return;
-
-    const question = userQuestion;
-    addMessage('user', question);
+    addMessage('user', userQuestion);
     setUserQuestion("");
-
-    simulateAiResponse(
-      `Great question about page ${pageNumber}! The author emphasizes understanding systems over goals.`
-    );
+    simulateAiResponse(`That's an insightful question about page ${pageNumber}. The author suggests that consistency is the primary driver of long-term progress.`);
   };
 
   // ---------- UI ----------
@@ -148,12 +154,12 @@ const BookReader = () => {
       {/* PDF VIEW */}
       <div className="flex-1 mt-20 mb-24 overflow-y-auto flex justify-center p-4 z-0">
         {pdfUrl ? (
-            <div className="shadow-2xl border border-gray-200 bg-white">
+            <div className="shadow-2xl border border-gray-200 bg-white h-fit">
             <Document 
                 file={pdfUrl} 
                 onLoadSuccess={onDocumentLoadSuccess} 
                 loading={<div className="p-20 text-gray-400">Loading Book PDF...</div>}
-                error={<div className="p-20 text-red-500">Failed to load PDF. Is the server running?</div>}
+                error={<div className="p-20 text-red-500">Failed to load PDF. Check connection.</div>}
             >
                 <Page pageNumber={pageNumber} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} />
             </Document>
@@ -163,10 +169,8 @@ const BookReader = () => {
         )}
       </div>
 
-      {/* BOTTOM BAR (Navigation) */}
+      {/* BOTTOM BAR */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 h-20 flex items-center justify-between px-6 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        
-        {/* LEFT: PREV BUTTON */}
         <button 
             onClick={() => changePage(-1)} 
             disabled={pageNumber <= 1} 
@@ -175,7 +179,6 @@ const BookReader = () => {
             <ChevronLeft /> Prev
         </button>
         
-        {/* RIGHT: NEXT + AI BUTTONS */}
         <div className="flex items-center gap-3">
             <button 
                 onClick={() => changePage(1)} 
@@ -188,9 +191,7 @@ const BookReader = () => {
             <button 
                 onClick={() => setShowAiPanel(!showAiPanel)} 
                 className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-md ${
-                    showAiPanel 
-                    ? 'bg-purple-600 text-white ring-4 ring-purple-100' 
-                    : 'bg-black text-white hover:scale-105'
+                    showAiPanel ? 'bg-purple-600 text-white' : 'bg-black text-white hover:scale-105'
                 }`}
             >
                 <Magic /> {showAiPanel ? 'Hide AI' : 'AI Companion'}
@@ -198,17 +199,14 @@ const BookReader = () => {
         </div>
       </div>
 
-      {/* AI PANEL (Unchanged) */}
+      {/* AI PANEL */}
       {showAiPanel && (
         <div className="fixed top-16 bottom-20 right-0 w-full md:w-96 bg-white shadow-2xl z-40 flex flex-col border-l animate-fade-in-right">
-          
-          {/* Header */}
           <div className="p-4 border-b flex justify-between items-center bg-gray-50">
             <h3 className="text-lg font-bold text-purple-600 flex items-center gap-2"><Magic /> AI Companion</h3>
             <button onClick={() => setShowAiPanel(false)} className="p-2 hover:bg-gray-200 rounded-full"><X size={20} /></button>
           </div>
 
-          {/* Chat History */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" ref={chatContainerRef}>
             {chatHistory.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -220,7 +218,6 @@ const BookReader = () => {
             {isTyping && <div className="text-xs text-gray-400 ml-4 animate-pulse">AI is thinking...</div>}
           </div>
 
-          {/* Input Area */}
           <div className="p-4 border-t bg-white">
             <button 
                 onClick={handleSummarize} 
@@ -243,7 +240,6 @@ const BookReader = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };
