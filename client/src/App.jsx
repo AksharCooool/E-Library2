@@ -12,7 +12,7 @@ import ManageBooks from './pages/admin/ManageBooks';
 import UserDashboard from './pages/user/UserDashboard';
 import Home from './pages/user/Home';
 import ManageUsers from './pages/admin/ManageUsers';
-import Announcements from './pages/admin/Announcements';
+import ManageTrending from './pages/admin/ManageTrending';
 import BookDetails from './pages/user/BookDetails';
 import BookReader from './pages/user/BookReader'; 
 import Profile from './pages/user/Profile';
@@ -51,7 +51,7 @@ function App() {
           <Route index element={<AdminDashboard />} />
           <Route path="books" element={<ManageBooks />} />
           <Route path="users" element={<ManageUsers />} />
-          <Route path="announcements" element={<Announcements />} />
+          <Route path="manage-trending" element={<ManageTrending />} />
         </Route>
 
       </Routes>

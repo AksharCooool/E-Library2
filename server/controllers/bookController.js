@@ -1,8 +1,8 @@
 import Book from "../models/Book.js";
-import Review from "../models/Review.js"; // <--- Import the new Review model
+import Review from "../models/Review.js";
 import fs from "fs";
 import path from "path";
-import asyncHandler from "express-async-handler"; // Recommended wrapper for cleaner error handling
+import asyncHandler from "express-async-handler";
 
 // 1. GET ALL BOOKS
 export const getBooks = asyncHandler(async (req, res) => {
@@ -16,12 +16,10 @@ export const getBookById = asyncHandler(async (req, res) => {
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    // 👇 FETCH REVIEWS SEPARATELY
-    // This keeps the main book load fast. We find reviews that belong to this book ID.
+    // Fetch reviews separately for this book
     const reviews = await Review.find({ book: req.params.id }).sort({ createdAt: -1 });
 
-    // We combine them into one object so the frontend gets everything it expects
-    // .toObject() converts the Mongoose document to a plain JavaScript object
+    // Combine book data with reviews
     res.json({ ...book.toObject(), reviews }); 
   } else {
     res.status(404);
@@ -29,30 +27,27 @@ export const getBookById = asyncHandler(async (req, res) => {
   }
 });
 
-// 3. CREATE BOOK (Handles File Upload OR Link)
+// 3. CREATE BOOK
 export const createBook = asyncHandler(async (req, res) => {
-  // 👇 ADDED 'pages' HERE so new books save the page count
   const { title, author, category, description, coverImage, pdfUrl, pages } = req.body;
 
   let finalPdfUrl = pdfUrl; // Default: use the manually entered link
 
-  // IF A FILE WAS UPLOADED (via Multer)
+  // IF A FILE WAS UPLOADED
   if (req.file) {
-    // Create a URL pointing to your server's static 'uploads' folder
     finalPdfUrl = `${req.protocol}://${req.get("host")}/uploads/pdfs/${req.file.filename}`;
   }
 
-  // Note: We need to associate the book with a user if your schema requires it.
-  // Assuming req.user is populated by your auth middleware:
   const book = new Book({
-    user: req.user._id, // Attach the user who created the book
+    user: req.user._id,
     title,
     author,
     category,
     description,
     coverImage,
     pdfUrl: finalPdfUrl,
-    pages: pages || 0, // Save pages (default to 0 if missing)
+    pages: pages || 0,
+    isTrending: false, // Default to false
   });
 
   const createdBook = await book.save();
@@ -64,19 +59,18 @@ export const deleteBook = asyncHandler(async (req, res) => {
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    // OPTIONAL: Delete the local file to save server space
+    // Delete local PDF file if it exists
     if (book.pdfUrl && book.pdfUrl.includes("/uploads/pdfs/")) {
-      const filename = book.pdfUrl.split("/").pop(); // Extract filename
+      const filename = book.pdfUrl.split("/").pop();
       const filePath = path.join(process.cwd(), "uploads/pdfs", filename);
       
-      // If file exists, delete it
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath); 
       }
     }
 
     await book.deleteOne();
-    // Also delete all reviews associated with this book (Clean up database)
+    // Delete associated reviews
     await Review.deleteMany({ book: req.params.id });
     
     res.json({ message: 'Book removed' });
@@ -86,13 +80,13 @@ export const deleteBook = asyncHandler(async (req, res) => {
   }
 });
 
-// 5. CREATE BOOK REVIEW (UPDATED FOR NEW SYSTEM)
+// 5. CREATE BOOK REVIEW
 export const createBookReview = asyncHandler(async (req, res) => {
   const { rating, comment } = req.body;
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    // 1. Check if user already reviewed in the separate collection
+    // Check if already reviewed
     const alreadyReviewed = await Review.findOne({
       book: req.params.id,
       user: req.user._id,
@@ -103,7 +97,7 @@ export const createBookReview = asyncHandler(async (req, res) => {
       throw new Error("You have already reviewed this book");
     }
 
-    // 2. Create the Review in the new Collection
+    // Create Review
     await Review.create({
       book: req.params.id,
       user: req.user._id,
@@ -112,8 +106,7 @@ export const createBookReview = asyncHandler(async (req, res) => {
       comment,
     });
 
-    // 3. Recalculate Average Rating (Aggregate)
-    // This looks at the Review collection to get the real stats
+    // Recalculate Average Rating
     const stats = await Review.aggregate([
       { $match: { book: book._id } },
       {
@@ -125,15 +118,28 @@ export const createBookReview = asyncHandler(async (req, res) => {
       },
     ]);
 
-    // Update the Book document with new summary stats
-    // (If stats is empty, it means this was the first review, but aggregate usually handles it.
-    // Safety check just in case: stats[0] might be undefined if something deleted reviews)
     book.numReviews = stats[0] ? stats[0].numReviews : 1;
     book.rating = stats[0] ? stats[0].avgRating : Number(rating);
 
     await book.save();
     
     res.status(201).json({ message: "Review added" });
+  } else {
+    res.status(404);
+    throw new Error("Book not found");
+  }
+});
+
+// 6. TOGGLE TRENDING STATUS (NEW)
+// @desc    Switch isTrending between true/false
+// @route   PUT /api/books/:id/trending
+export const toggleTrending = asyncHandler(async (req, res) => {
+  const book = await Book.findById(req.params.id);
+
+  if (book) {
+    book.isTrending = !book.isTrending; // Flip the boolean
+    const updatedBook = await book.save();
+    res.json(updatedBook);
   } else {
     res.status(404);
     throw new Error("Book not found");

@@ -48,9 +48,9 @@ const Sidebar = () => {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/admin/announcements" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/admin/announcements')}`}>
+                  <Link to="/admin/manage-trending" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive('/admin/manage-trending')}`}>
                     <Megaphone size={20} />
-                    <span className="font-medium">Announcements</span>
+                    <span className="font-medium">Manage Trending</span>
                   </Link>
                 </li>
             </>

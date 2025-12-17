@@ -10,9 +10,12 @@ import {
   getBookById,
   createBook,
   deleteBook,
-  createBookReview, 
+  createBookReview,
+  toggleTrending, // <--- 1. IMPORT THIS
 } from "../controllers/bookController.js";
-import { protect } from "../middleware/authMiddleware.js"; 
+
+// 👇 2. IMPORT ADMIN MIDDLEWARE
+import { protect, admin } from "../middleware/authMiddleware.js"; 
 
 const router = express.Router();
 
@@ -23,14 +26,12 @@ const __dirname = path.dirname(__filename);
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = path.join(process.cwd(), "uploads/pdfs");
-    // Ensure directory exists
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    // Clean filename: remove spaces, add timestamp
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
     cb(null, `book-${uniqueSuffix}${ext}`);
@@ -44,16 +45,19 @@ const upload = multer({ storage });
 // 1. Get all books (Public) & Create book (Protected)
 router.route("/")
   .get(getBooks)
-  .post(protect, upload.single("pdfFile"), createBook); // 🔒 Added protect here
+  .post(protect, upload.single("pdfFile"), createBook);
 
 // 2. Add a Review (Protected)
-// This is the specific fix for your 500 Error
 router.route("/:id/reviews").post(protect, createBookReview);
 
-// 3. Get single book (Public) & Delete book (Protected)
+// 3. Toggle Trending Status (Admin Only) - NEW ROUTE
+router.route("/:id/trending").put(protect, admin, toggleTrending); 
+
+// 4. Get single book (Public) & Delete book (Protected)
+// (Keep :id routes at the bottom to avoid conflicts with specific strings)
 router.route("/:id")
   .get(getBookById)
-  .delete(protect, deleteBook); // 🔒 Added protect here
+  .delete(protect, deleteBook);
 
 // --- PDF STREAM ENDPOINT ---
 router.get("/stream/:id", async (req, res) => {
@@ -64,12 +68,10 @@ router.get("/stream/:id", async (req, res) => {
       return res.status(404).json({ message: "PDF not found" });
     }
 
-    // Determine if it is a local file or external URL
     if (book.pdfUrl.startsWith("http") && !book.pdfUrl.includes("localhost")) {
        return res.redirect(book.pdfUrl);
     }
 
-    // If it's a local file
     const filename = book.pdfUrl.split("/").pop();
     const filePath = path.join(process.cwd(), "uploads/pdfs", filename);
 

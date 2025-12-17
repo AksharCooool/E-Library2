@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../../axiosConfig'; // 1. Import Axios
+import axios from '../../axiosConfig'; 
 import toast from 'react-hot-toast';
-import { Trash, Search, PersonCircle, ShieldLock, Eye, X, Book, Star, Heart, Send } from 'react-bootstrap-icons';
+import { Trash, Search, PersonCircle, ShieldLock, Eye, X, Book, Star, Heart } from 'react-bootstrap-icons';
 
 const ManageUsers = () => {
   // --- STATE ---
-  const [users, setUsers] = useState([]); // 2. Start with empty array
+  const [users, setUsers] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Modal States
+  // Modal State (Only Profile Modal remains)
   const [selectedUser, setSelectedUser] = useState(null); 
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showMessageModal, setShowMessageModal] = useState(false);
-  const [messageText, setMessageText] = useState("");
 
-  // --- 3. FETCH USERS FROM DB ---
+  // --- FETCH USERS ---
   useEffect(() => {
     const fetchUsers = async () => {
         try {
@@ -33,7 +31,7 @@ const ManageUsers = () => {
 
   // --- HANDLERS ---
 
-  // 4. DELETE USER (Dynamic)
+  // DELETE USER
   const handleDelete = async (id) => {
     if(!window.confirm("Are you sure you want to remove this user completely? This action cannot be undone.")) return;
     
@@ -42,45 +40,34 @@ const ManageUsers = () => {
         setUsers(users.filter(user => user._id !== id));
         toast.success('User removed successfully.');
         
-        if (selectedUser?._id === id) setShowProfileModal(false); // Close modal if open
+        if (selectedUser?._id === id) setShowProfileModal(false);
     } catch (error) {
         toast.error(error.response?.data?.message || "Delete failed");
     }
   };
 
-  // 5. BLOCK / UNBLOCK USER (Dynamic)
-const handleToggleStatus = async () => {
+  // BLOCK / UNBLOCK USER
+  const handleToggleStatus = async () => {
     if (!selectedUser) return;
 
     try {
-        // 1. Send Request
         const { data } = await axios.put(`/admin/users/${selectedUser._id}/block`);
         
-        // 2. GET THE REAL STATUS FROM BACKEND (Crucial!)
+        // 1. Get real status from backend
         const newStatus = data.isBlocked; 
 
-        // 3. Update the main list so the table badge updates
+        // 2. Update list
         setUsers(prevUsers => prevUsers.map(u => 
             u._id === selectedUser._id ? { ...u, isBlocked: newStatus } : u
         ));
         
-        // 4. Update the Modal so the BUTTON text updates
+        // 3. Update modal
         setSelectedUser(prev => ({ ...prev, isBlocked: newStatus }));
-
-        // 5. Success Message
         toast.success(newStatus ? "User Blocked!" : "User Activated!");
 
     } catch (error) {
         toast.error(error.response?.data?.message || "Update failed");
     }
-};
-
-  // 6. SEND MESSAGE (Still Simulation - No Backend for this yet)
-  const handleSendMessage = (e) => {
-      e.preventDefault();
-      toast.success(`Message sent to ${selectedUser.name}`);
-      setMessageText("");
-      setShowMessageModal(false);
   };
 
   const handleViewUser = (user) => {
@@ -226,48 +213,20 @@ const handleToggleStatus = async () => {
                     </div>
                 </div>
 
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => { setShowProfileModal(false); setShowMessageModal(true); }}
-                        className="flex-1 py-3 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-lg transition-transform hover:-translate-y-1"
-                    >
-                        Send Message
-                    </button>
+                {/* --- ACTION BUTTONS (Cleaned Up) --- */}
+                <div className="w-full">
                     <button 
                         onClick={handleToggleStatus}
-                        className={`flex-1 py-3 border rounded-xl font-bold transition-colors ${
+                        className={`w-full py-3.5 border rounded-xl font-bold transition-colors shadow-sm text-center ${
                             !selectedUser.isBlocked
                             ? "bg-white border-red-200 text-red-600 hover:bg-red-50" 
                             : "bg-white border-green-200 text-green-600 hover:bg-green-50"
                         }`}
                     >
-                        {!selectedUser.isBlocked ? "Ban User" : "Activate User"}
+                        {!selectedUser.isBlocked ? "Ban User Access" : "Activate User Access"}
                     </button>
                 </div>
             </div>
-        </div>
-      )}
-
-      {/* --- MESSAGE MODAL (Visual Only) --- */}
-      {showMessageModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 animate-fade-in">
-             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md relative">
-                <button onClick={() => setShowMessageModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={24} /></button>
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Send /> Message {selectedUser.name}</h2>
-                
-                <form onSubmit={handleSendMessage}>
-                    <textarea 
-                        className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black outline-none h-32 resize-none mb-4"
-                        placeholder="Type your message here..."
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                        required
-                    ></textarea>
-                    <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg">
-                        Send Notification
-                    </button>
-                </form>
-             </div>
         </div>
       )}
 
