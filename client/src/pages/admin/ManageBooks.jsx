@@ -44,7 +44,6 @@ const ManageBooks = () => {
   });
 
   // --- EFFECTS ---
-
   useEffect(() => {
     const fetchBooks = async () => {
       try {
@@ -103,7 +102,6 @@ const ManageBooks = () => {
   }, [darkMode, vantaEffect]);
 
   // --- HANDLERS ---
-
   const filteredBooks = books.filter((book) =>
     `${book.title} ${book.author} ${book.category}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -139,22 +137,34 @@ const ManageBooks = () => {
     toast.success("Category removed");
   };
 
-  const handleAIGenerate = () => {
-    if (!currentBook.title) {
-      toast.error("Enter book title first");
-      return;
-    }
-    toast.loading("Generating...");
-    setTimeout(() => {
-      toast.dismiss();
-      setCurrentBook((prev) => ({
-        ...prev,
-        synopsis: `AI generated synopsis for ${prev.title}. This is a simulated response.`,
-        pages: prev.pages || Math.floor(Math.random() * 300) + 100 
-      }));
-      toast.success("Synopsis generated");
-    }, 1500);
-  };
+  // 👇 FIXED: This now calls your Groq API instead of using a timeout
+  const handleAIGenerate = async () => {
+  if (!currentBook.title || !currentBook.author) {
+    toast.error("Enter title and author first");
+    return;
+  }
+
+  const toastId = toast.loading("AI is writing synopsis...");
+  
+  try {
+    const { data } = await axios.post("/ai/generate-synopsis", {
+      title: currentBook.title,
+      author: currentBook.author
+    });
+
+    setCurrentBook((prev) => ({
+      ...prev,
+      synopsis: data.synopsis,
+      // We no longer touch the 'pages' property here, 
+      // so it remains whatever the user typed (or empty).
+    }));
+
+    toast.success("AI Synopsis ready!", { id: toastId });
+  } catch (err) {
+    console.error("AI Generation failed:", err);
+    toast.error("AI was unable to generate synopsis.", { id: toastId });
+  }
+};
 
   const handleSaveBook = async (e) => {
     e.preventDefault();
@@ -333,8 +343,6 @@ const ManageBooks = () => {
             </div>
         </motion.div>
 
-        {/* --- MODALS --- */}
-        
         {/* ADD BOOK MODAL */}
         <AnimatePresence>
             {showBookModal && (
@@ -350,24 +358,25 @@ const ManageBooks = () => {
                         
                         <form onSubmit={handleSaveBook} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <input name="title" placeholder="Book Title" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
-                                <input name="author" placeholder="Author" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
+                                <input name="title" value={currentBook.title} placeholder="Book Title" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
+                                <input name="author" value={currentBook.author} placeholder="Author" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} required />
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4">
-                                <select name="category" className={`w-full p-3 rounded-xl border outline-none appearance-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange}>
+                                <select name="category" value={currentBook.category} className={`w-full p-3 rounded-xl border outline-none appearance-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange}>
                                     {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                                 </select>
                                 <input 
                                     type="number" 
                                     name="pages" 
+                                    value={currentBook.pages}
                                     placeholder="Page Count" 
                                     className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} 
                                     onChange={handleInputChange} 
                                 />
                             </div>
 
-                            <input name="cover" placeholder="Cover Image URL" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
+                            <input name="cover" value={currentBook.cover} placeholder="Cover Image URL" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
                             
                             <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                                 <div className="flex gap-4 mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
@@ -380,7 +389,7 @@ const ManageBooks = () => {
                                 </div>
 
                                 {uploadMode === 'url' ? (
-                                    <input name="pdfUrl" placeholder="https://example.com/book.pdf" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} onChange={handleInputChange} />
+                                    <input name="pdfUrl" value={currentBook.pdfUrl} placeholder="https://example.com/book.pdf" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} onChange={handleInputChange} />
                                 ) : (
                                     <div className="relative">
                                         <input type="file" accept="application/pdf" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
@@ -397,8 +406,8 @@ const ManageBooks = () => {
                             </div>
 
                             <div className="relative">
-                                <textarea name="synopsis" placeholder="Book Synopsis..." rows="3" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
-                                <button type="button" onClick={handleAIGenerate} className="absolute bottom-3 right-3 text-xs font-bold text-purple-500 bg-purple-100 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-purple-200">
+                                <textarea name="synopsis" value={currentBook.synopsis} placeholder="Book Synopsis..." rows="3" className={`w-full p-3 rounded-xl border outline-none ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`} onChange={handleInputChange} />
+                                <button type="button" onClick={handleAIGenerate} className="absolute bottom-3 right-3 text-xs font-bold text-purple-500 bg-purple-100 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-purple-200 transition-colors">
                                     <Magic /> Generate AI
                                 </button>
                             </div>
@@ -412,7 +421,7 @@ const ManageBooks = () => {
             )}
         </AnimatePresence>
 
-        {/* CATEGORY MODAL - Unchanged */}
+        {/* CATEGORY MODAL */}
         <AnimatePresence>
             {showCategoryModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

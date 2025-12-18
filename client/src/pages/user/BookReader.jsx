@@ -18,8 +18,6 @@ const BookReader = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const chatContainerRef = useRef(null);
-  
-  // 👇 FIX: Use a ref to prevent double toast notifications
   const hasResumed = useRef(false);
 
   // ---------- STATE ----------
@@ -28,6 +26,10 @@ const BookReader = () => {
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [pageText, setPageText] = useState(""); 
+  
+  // NEW: State for book details
+  const [bookDetails, setBookDetails] = useState({ title: "this book", author: "unknown" });
 
   // AI Chat State
   const [chatHistory, setChatHistory] = useState([
@@ -39,44 +41,38 @@ const BookReader = () => {
   // ---------- 1. FETCH BOOK & PROGRESS ----------
   useEffect(() => {
     const initializeReader = async () => {
-      // 1. SET PDF URL
       setPdfUrl(`http://localhost:5000/api/books/stream/${id}`);
-
-      // 2. FETCH SAVED PROGRESS
       try {
-        const { data: user } = await axios.get('/users/profile');
-        
-        if (user && user.readingProgress) {
-            // Find progress for this book
-            const savedProgress = user.readingProgress.find(p => 
-              (p.bookId?._id === id) || (p.bookId === id)
-            );
+        // Fetch book info for AI context
+        const { data: book } = await axios.get(`/books/${id}`);
+        if(book) setBookDetails({ title: book.title, author: book.author });
 
-            if (savedProgress && savedProgress.currentPage > 1) {
-                setPageNumber(savedProgress.currentPage);
-                
-                // 👇 ONLY SHOW TOAST IF NOT ALREADY SHOWN
-                if (!hasResumed.current) {
-                  toast.success(`Resumed at page ${savedProgress.currentPage}`, { 
-                    position: 'top-center',
-                    id: 'resume-toast' // Use a static ID to prevent duplicates anyway
-                  });
-                  hasResumed.current = true;
-                }
+        const { data: user } = await axios.get('/users/profile');
+        if (user && user.readingProgress) {
+          const savedProgress = user.readingProgress.find(p => 
+            (p.bookId?._id === id) || (p.bookId === id)
+          );
+          if (savedProgress && savedProgress.currentPage > 1) {
+            setPageNumber(savedProgress.currentPage);
+            if (!hasResumed.current) {
+              toast.success(`Resumed at page ${savedProgress.currentPage}`, { 
+                position: 'top-center',
+                id: 'resume-toast' 
+              });
+              hasResumed.current = true;
             }
+          }
         }
       } catch (error) {
         console.warn("Reading progress not loaded");
       }
     };
-
     initializeReader();
   }, [id]);
 
   // ---------- 2. SYNC PROGRESS TO DB ----------
   const updateDatabase = async (newPage, total) => {
       try {
-          // This call triggers the global 'reads' increment in the backend
           await axios.put('/users/progress', {
               bookId: id,
               currentPage: newPage,
@@ -90,51 +86,84 @@ const BookReader = () => {
   // ---------- PDF HANDLERS ----------
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
-    // Trigger initial progress save to mark book as "Started" in dashboard
     updateDatabase(pageNumber, numPages);
+  };
+
+  const onPageLoadSuccess = async (page) => {
+    try {
+      const textContent = await page.getTextContent();
+      const strings = textContent.items.map(item => item.str);
+      const combinedText = strings.join(" ").replace(/\s+/g, ' ').trim();
+      setPageText(combinedText);
+    } catch (err) {
+      console.error("Text extraction failed:", err);
+    }
   };
 
   const changePage = (offset) => {
       setPageNumber(prevPage => {
           const newPage = prevPage + offset;
           if (newPage < 1 || newPage > numPages) return prevPage;
-          
+          setPageText(""); 
           updateDatabase(newPage, numPages);
           return newPage;
       });
   };
 
-  // ---------- AI FEATURES (Simulated) ----------
+  // ---------- REAL AI LOGIC ----------
   const addMessage = (role, text) => {
     setChatHistory(prev => [...prev, { role, text }]);
   };
 
-  const simulateAiResponse = (text) => {
+  const callGroqAPI = async (message) => {
+    if (!pageText || pageText.trim().length === 0) {
+        toast.error("Still reading the page... try again in a second!", { id: 'wait-toast' });
+        return;
+    }
+
     setIsTyping(true);
-    setTimeout(() => {
+    try {
+      // 🚀 THE KEY CHANGE: Sending history, title, and author
+      const { data } = await axios.post('/ai/chat', {
+        message: message,
+        history: chatHistory, // Pass existing chat so AI remembers
+        pageContent: pageText, 
+        pageNumber: pageNumber,
+        bookTitle: bookDetails.title,
+        bookAuthor: bookDetails.author
+      });
+      addMessage('ai', data.reply);
+    } catch (error) {
+      console.error("AI Error:", error);
+      addMessage('ai', "Sorry, I'm having trouble connecting to my brain right now.");
+    } finally {
       setIsTyping(false);
-      addMessage('ai', text);
-    }, 1500);
+      if (chatContainerRef.current) {
+        setTimeout(() => {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }, 100);
+      }
+    }
   };
 
   const handleSummarize = () => {
-    addMessage('user', "Summarize this page for me.");
-    simulateAiResponse(`Summary of page ${pageNumber}: The content focuses on fundamental concepts and practical applications relevant to the current chapter.`);
+    const msg = `Summarize page ${pageNumber} of "${bookDetails.title}" for me.`;
+    addMessage('user', "Summarize this page."); // UI stays clean
+    callGroqAPI(msg); // AI gets the detailed command
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!userQuestion.trim()) return;
-    addMessage('user', userQuestion);
+    const msg = userQuestion;
+    addMessage('user', msg);
     setUserQuestion("");
-    simulateAiResponse(`That's an insightful question about page ${pageNumber}. The author suggests that consistency is the primary driver of long-term progress.`);
+    callGroqAPI(msg);
   };
 
-  // ---------- UI ----------
+  // ---------- UI (INTACT) ----------
   return (
-    <div className="bg-gray-100 min-h-screen w-full flex flex-col relative overflow-hidden font-sans">
-
-      {/* TOP BAR */}
+    <div className="bg-gray-100 min-h-screen w-full flex flex-col relative overflow-hidden font-sans text-black">
       <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 fixed top-0 w-full z-50 shadow-sm">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -151,7 +180,6 @@ const BookReader = () => {
         </div>
       </div>
 
-      {/* PDF VIEW */}
       <div className="flex-1 mt-20 mb-24 overflow-y-auto flex justify-center p-4 z-0">
         {pdfUrl ? (
             <div className="shadow-2xl border border-gray-200 bg-white h-fit">
@@ -161,7 +189,13 @@ const BookReader = () => {
                 loading={<div className="p-20 text-gray-400">Loading Book PDF...</div>}
                 error={<div className="p-20 text-red-500">Failed to load PDF. Check connection.</div>}
             >
-                <Page pageNumber={pageNumber} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} />
+                <Page 
+                  pageNumber={pageNumber} 
+                  scale={scale} 
+                  renderTextLayer={true} 
+                  renderAnnotationLayer={false} 
+                  onLoadSuccess={onPageLoadSuccess} 
+                />
             </Document>
             </div>
         ) : (
@@ -169,7 +203,6 @@ const BookReader = () => {
         )}
       </div>
 
-      {/* BOTTOM BAR */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 h-20 flex items-center justify-between px-6 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <button 
             onClick={() => changePage(-1)} 
@@ -199,12 +232,11 @@ const BookReader = () => {
         </div>
       </div>
 
-      {/* AI PANEL */}
       {showAiPanel && (
-        <div className="fixed top-16 bottom-20 right-0 w-full md:w-96 bg-white shadow-2xl z-40 flex flex-col border-l animate-fade-in-right">
+        <div className="fixed top-16 bottom-20 right-0 w-full md:w-96 bg-white shadow-2xl z-40 flex flex-col border-l">
           <div className="p-4 border-b flex justify-between items-center bg-gray-50">
             <h3 className="text-lg font-bold text-purple-600 flex items-center gap-2"><Magic /> AI Companion</h3>
-            <button onClick={() => setShowAiPanel(false)} className="p-2 hover:bg-gray-200 rounded-full"><X size={20} /></button>
+            <button onClick={() => setShowAiPanel(false)} className="p-2 hover:bg-gray-200 rounded-full text-black"><X size={20} /></button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" ref={chatContainerRef}>
