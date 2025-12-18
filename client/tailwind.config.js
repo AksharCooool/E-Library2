@@ -19,8 +19,10 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(-10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-      }, // Closes keyframes
-    }, // Closes extend
-  }, // Closes theme
-  plugins: [],
-} // Closes the main object
+      },
+    },
+  },
+  plugins: [
+    require('@tailwindcss/typography'), // Added this line
+  ],
+}

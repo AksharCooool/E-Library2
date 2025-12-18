@@ -15,7 +15,6 @@ const AI_MODEL = 'llama-3.1-8b-instant';
 
 export const chat = async (req, res) => {
     try {
-        // 1. Accept history and book details from the request
         const { message, history, pageContent, pageNumber, bookTitle, bookAuthor } = req.body; 
 
         if (!message && (!history || history.length === 0)) {
@@ -26,22 +25,23 @@ export const chat = async (req, res) => {
             ? pageContent 
             : "No text content available for this page yet.";
 
-        // 2. The "Brain" - A specialized system prompt for student reading
+        // --- UPDATED SYSTEM PROMPT ---
         const systemPrompt = `
-You are an expert Academic AI Tutor assisting a student with the book: "${bookTitle}" by ${bookAuthor}.
-CURRENT CONTEXT: You are looking at Page ${pageNumber}.
+You are an expert Academic AI Tutor for "${bookTitle}" by ${bookAuthor}.
+Current Page: ${pageNumber}
 PAGE TEXT: "${contextText}"
 
 INSTRUCTIONS:
-1. CONTEXT: Always remember you are discussing "${bookTitle}". If the page text is vague, use your general knowledge of this book to help.
-2. SUMMARIES: If the user asks for a summary, provide a structured breakdown with bold headers and bullet points. Focus on the most important academic takeaways.
-3. CONVERSATION: Use the provided chat history to understand follow-up questions (e.g., if the user says "Explain that more," refer to your previous answer).
-4. TONE: Be encouraging, concise, and professional.
-5. LIMITS: If the page text is missing, politely ask the student to wait for the PDF to finish loading.
+1. Use Markdown formatting for ALL responses.
+2. Use ### for section headers.
+3. Use **bold text** for key terms or names.
+4. Use bullet points (-) for lists or main takeaways.
+5. If summarizing, create a "Key Points" section.
+6. Keep paragraphs short (2-3 sentences max) to improve readability.
+7. Use the provided chat history to understand follow-up questions.
+8. If the PAGE TEXT is missing, politely ask the student to wait for the PDF to load.
 `;
 
-        // 3. Build the message array for Groq (System + History + Current Message)
-        // We ensure the history is mapped correctly to { role, content }
         const messages = [
             { role: "system", content: systemPrompt },
             ...history.map(msg => ({
@@ -54,7 +54,7 @@ INSTRUCTIONS:
         const chatCompletion = await groq.chat.completions.create({
             model: AI_MODEL, 
             messages: messages,
-            temperature: 0.3, // Lower temperature for more factual/academic accuracy
+            temperature: 0.3, 
             max_tokens: 800,
         });
 

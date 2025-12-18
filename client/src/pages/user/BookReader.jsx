@@ -5,6 +5,7 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, Magic, 
   X, ZoomIn, ZoomOut, Send 
 } from 'react-bootstrap-icons';
+import ReactMarkdown from 'react-markdown'; // Added Import
 import toast from 'react-hot-toast';
 import axios from '../../axiosConfig'; 
 
@@ -27,8 +28,6 @@ const BookReader = () => {
   const [scale, setScale] = useState(1.0);
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [pageText, setPageText] = useState(""); 
-  
-  // NEW: State for book details
   const [bookDetails, setBookDetails] = useState({ title: "this book", author: "unknown" });
 
   // AI Chat State
@@ -43,7 +42,6 @@ const BookReader = () => {
     const initializeReader = async () => {
       setPdfUrl(`http://localhost:5000/api/books/stream/${id}`);
       try {
-        // Fetch book info for AI context
         const { data: book } = await axios.get(`/books/${id}`);
         if(book) setBookDetails({ title: book.title, author: book.author });
 
@@ -110,7 +108,7 @@ const BookReader = () => {
       });
   };
 
-  // ---------- REAL AI LOGIC ----------
+  // ---------- AI LOGIC ----------
   const addMessage = (role, text) => {
     setChatHistory(prev => [...prev, { role, text }]);
   };
@@ -123,10 +121,9 @@ const BookReader = () => {
 
     setIsTyping(true);
     try {
-      // 🚀 THE KEY CHANGE: Sending history, title, and author
       const { data } = await axios.post('/ai/chat', {
         message: message,
-        history: chatHistory, // Pass existing chat so AI remembers
+        history: chatHistory,
         pageContent: pageText, 
         pageNumber: pageNumber,
         bookTitle: bookDetails.title,
@@ -148,8 +145,8 @@ const BookReader = () => {
 
   const handleSummarize = () => {
     const msg = `Summarize page ${pageNumber} of "${bookDetails.title}" for me.`;
-    addMessage('user', "Summarize this page."); // UI stays clean
-    callGroqAPI(msg); // AI gets the detailed command
+    addMessage('user', "Summarize this page.");
+    callGroqAPI(msg);
   };
 
   const handleSendMessage = (e) => {
@@ -161,9 +158,9 @@ const BookReader = () => {
     callGroqAPI(msg);
   };
 
-  // ---------- UI (INTACT) ----------
   return (
     <div className="bg-gray-100 min-h-screen w-full flex flex-col relative overflow-hidden font-sans text-black">
+      {/* Header */}
       <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 fixed top-0 w-full z-50 shadow-sm">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -180,6 +177,7 @@ const BookReader = () => {
         </div>
       </div>
 
+      {/* PDF Viewport */}
       <div className="flex-1 mt-20 mb-24 overflow-y-auto flex justify-center p-4 z-0">
         {pdfUrl ? (
             <div className="shadow-2xl border border-gray-200 bg-white h-fit">
@@ -187,7 +185,7 @@ const BookReader = () => {
                 file={pdfUrl} 
                 onLoadSuccess={onDocumentLoadSuccess} 
                 loading={<div className="p-20 text-gray-400">Loading Book PDF...</div>}
-                error={<div className="p-20 text-red-500">Failed to load PDF. Check connection.</div>}
+                error={<div className="p-20 text-red-500">Failed to load PDF.</div>}
             >
                 <Page 
                   pageNumber={pageNumber} 
@@ -203,6 +201,7 @@ const BookReader = () => {
         )}
       </div>
 
+      {/* Navigation Footer */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 h-20 flex items-center justify-between px-6 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <button 
             onClick={() => changePage(-1)} 
@@ -232,6 +231,7 @@ const BookReader = () => {
         </div>
       </div>
 
+      {/* AI Panel */}
       {showAiPanel && (
         <div className="fixed top-16 bottom-20 right-0 w-full md:w-96 bg-white shadow-2xl z-40 flex flex-col border-l">
           <div className="p-4 border-b flex justify-between items-center bg-gray-50">
@@ -239,15 +239,39 @@ const BookReader = () => {
             <button onClick={() => setShowAiPanel(false)} className="p-2 hover:bg-gray-200 rounded-full text-black"><X size={20} /></button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" ref={chatContainerRef}>
+          {/* --- UPDATED CHAT BUBBLES SECTION --- */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50" ref={chatContainerRef}>
             {chatHistory.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm ${msg.role === 'user' ? 'bg-black text-white rounded-br-none' : 'bg-white border rounded-bl-none text-gray-800'}`}>
-                    {msg.text}
+                <div 
+                  className={`max-w-[90%] p-4 rounded-2xl shadow-sm transition-all ${
+                    msg.role === 'user' 
+                      ? 'bg-black text-white rounded-br-none' 
+                      : 'bg-white border border-gray-200 rounded-bl-none text-gray-800'
+                  }`}
+                >
+                  {msg.role === 'user' ? (
+                    <p className="text-sm font-medium">{msg.text}</p>
+                  ) : (
+                    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-p:leading-relaxed prose-li:my-1 prose-headings:text-purple-600 prose-headings:font-bold">
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-            {isTyping && <div className="text-xs text-gray-400 ml-4 animate-pulse">AI is thinking...</div>}
+            
+            {/* Animated Typing Indicator */}
+            {isTyping && (
+              <div className="flex items-center gap-2 ml-2">
+                <div className="flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                  <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                </div>
+                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-tighter">AI thinking</span>
+              </div>
+            )}
           </div>
 
           <div className="p-4 border-t bg-white">
