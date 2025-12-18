@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-// 👇 1. Import Axios and Toast
 import axios from '../../axiosConfig'; 
 import toast from 'react-hot-toast';
 
@@ -14,7 +13,7 @@ import * as THREE from 'three';
 const AdminDashboard = () => {
   // --- STATE ---
   const [darkMode, setDarkMode] = useState(false);
-  const [loading, setLoading] = useState(true); // Loading state
+  const [loading, setLoading] = useState(true); 
   
   // Vanta State
   const vantaRef = useRef(null);
@@ -48,8 +47,7 @@ const AdminDashboard = () => {
     fetchStats();
   }, []);
 
-  // --- HELPER: TIME AGO ---
-  // Converts date string to "2 hours ago", "Just now", etc.
+  // --- HELPERS ---
   const timeAgo = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -92,7 +90,7 @@ const AdminDashboard = () => {
     { 
         id: 3, 
         title: "Total Reads", 
-        value: dashboardStats.counts.totalReads, // You might want to format this (e.g. 1.5k) if number is huge
+        value: dashboardStats.counts.totalReads, 
         icon: <Eye size={24} />, 
         color: "text-green-500", 
         bg: "bg-green-500/10", 
@@ -109,7 +107,7 @@ const AdminDashboard = () => {
     },
   ];
 
-  // --- VANTA EFFECTS (Kept Original) ---
+  // --- VANTA EFFECTS  ---
   useEffect(() => {
     if (!vantaEffect && vantaRef.current) {
       setVantaEffect(FOG({

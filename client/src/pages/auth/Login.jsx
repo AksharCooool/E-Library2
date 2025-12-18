@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import axios from '../../axiosConfig'; // Using your configured axios instance
+import axios from '../../axiosConfig';
 import { motion } from 'framer-motion';
 import { Envelope, Lock, PersonCircle, ArrowRight } from 'react-bootstrap-icons';
 
@@ -47,20 +47,15 @@ const Login = () => {
     } catch (error) {
       console.error(error);
       
-      // 👇 CRITICAL FIX: Ignore 403 errors here
-      // The Global Interceptor (axiosConfig.js) handles "Blocked" users.
-      // If we handle it here too, we get double messages.
       if (error.response && error.response.status === 403) {
-          return; // Stop execution, let the interceptor do the work
+          return; 
       }
 
-      // Handle normal errors (Wrong password, etc.)
+      // Handle normal errors 
       const message = error.response?.data?.message || "Login Failed";
       toast.error(message);
-      setLoading(false); // Only stop loading if it's NOT a redirect
+      setLoading(false);
     }
-    // We removed 'finally' because if it's a success or a block, 
-    // we might want the loading spinner to stay until the page changes.
   };
 
   return (

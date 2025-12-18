@@ -5,16 +5,14 @@ import { HouseDoor, Book, People, BoxArrowRight, Speedometer2, Megaphone, Person
 const Sidebar = () => {
   const location = useLocation();
   
-  // Logic: Check if the current URL contains "/admin"
+  // Logic: 
   const isAdmin = location.pathname.startsWith('/admin');
 
-  // Helper for active link styling
   const isActive = (path) => location.pathname === path 
     ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" 
     : "text-gray-400 hover:bg-white/10 hover:text-white";
 
   return (
-    // ADDED: z-50 (to stay on top), backdrop-blur-xl (frost effect), border-r (subtle edge)
     <div className="h-screen w-64 bg-gray-900/90 backdrop-blur-xl text-white flex flex-col flex-shrink-0 transition-all duration-300 border-r border-white/10 z-50 relative">
       
       {/* Logo Area */}

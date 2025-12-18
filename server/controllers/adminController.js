@@ -11,16 +11,16 @@ export const getAdminStats = asyncHandler(async (req, res) => {
   const totalBooks = await Book.countDocuments();
   const totalReviews = await Review.countDocuments();
   
-  // Count users who have started at least one book
+  // Count users 
   const activeReaders = await User.countDocuments({ readingProgress: { $not: { $size: 0 } } });
 
-  // Calculate Total Reads (Sum of 'reads' field in all books)
+  // Calculate Total Reads 
   const readsResult = await Book.aggregate([
     { $group: { _id: null, total: { $sum: "$reads" } } }
   ]);
   const totalReads = readsResult[0]?.total || 0;
 
-  // 2. Fetch Recent Activity (Mix of New Users & Recent Reviews)
+  // 2. Fetch Recent Activity 
   const newUsers = await User.find()
     .select("name createdAt")
     .sort({ createdAt: -1 })
@@ -54,7 +54,7 @@ export const getAdminStats = asyncHandler(async (req, res) => {
     }))
   ];
 
-  // Sort combined list by date (newest first) and take top 5
+  // Sort combined list by date 
   const sortedActivity = activityMap.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
   res.json({
@@ -72,10 +72,10 @@ export const getAdminStats = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/users
 // @access  Private/Admin
 export const getAllUsers = asyncHandler(async (req, res) => {
-  // Fetch all users (excluding passwords)
+  // Fetch all users 
   const users = await User.find({}).select("-password").sort({ createdAt: -1 });
 
-  // Calculate stats for each user manually to display in table
+  // Calculate stats for each user 
   const usersWithStats = await Promise.all(
     users.map(async (user) => {
       const reviewsCount = await Review.countDocuments({ user: user._id });
@@ -106,13 +106,13 @@ export const toggleBlockUser = asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
 
     if (user) {
-        // Prevent blocking yourself (Admin safety)
+        // Prevent blocking Admin 
         if (user._id.toString() === req.user._id.toString()) {
             res.status(400);
             throw new Error("You cannot block yourself.");
         }
 
-        user.isBlocked = !user.isBlocked; // Toggle status
+        user.isBlocked = !user.isBlocked; 
         await user.save();
         
         res.json({ 
@@ -132,7 +132,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
 
     if (user) {
-        // Prevent deleting yourself
+        // Prevent deleting Admin
         if (user._id.toString() === req.user._id.toString()) {
             res.status(400);
             throw new Error("You cannot delete your own admin account.");
@@ -140,7 +140,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
 
         await User.deleteOne({ _id: user._id });
         
-        // Clean up reviews by this user so they don't become orphans
+        
         await Review.deleteMany({ user: user._id });
 
         res.json({ message: "User removed" });

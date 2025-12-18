@@ -20,9 +20,9 @@ export const loginUser = asyncHandler(async (req, res) => {
   // 1. Check if user exists and password matches
   if (user && (await bcrypt.compare(password, user.password))) {
     
-    // 👇 2. SECURITY CHECK: Is the user blocked?
+    // 👇 2. SECURITY CHECK
     if (user.isBlocked) {
-        res.status(403); // 403 = Forbidden
+        res.status(403); 
         throw new Error("Access Denied: Your account has been suspended.");
     }
 
@@ -43,7 +43,7 @@ export const loginUser = asyncHandler(async (req, res) => {
 // @desc    Register User
 // @route   POST /api/auth/register
 export const registerUser = asyncHandler(async (req, res) => {
-    // 👇 Extract role and adminSecret from request
+    
     const { name, email, password, gender, role, adminSecret } = req.body;
 
     const userExists = await User.findOne({ email });
@@ -52,20 +52,18 @@ export const registerUser = asyncHandler(async (req, res) => {
         throw new Error("User already exists");
     }
 
-    // 👇 SECURITY CHECK: Verify Admin Secret
-    let finalRole = "user"; // Default to user
+    //  SECURITY CHECK: 
+    let finalRole = "user"; 
     if (role === "admin") {
         if (adminSecret === process.env.ADMIN_SECRET) {
-            finalRole = "admin"; // Grant admin only if key matches
+            finalRole = "admin"; 
         } else {
             res.status(401);
             throw new Error("Invalid Admin Secret Key");
         }
     }
 
-    // Hash Password
-    // NOTE: Ensure your User.js model does NOT have a pre('save') hook that hashes password,
-    // or you will hash it twice!
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -76,7 +74,6 @@ export const registerUser = asyncHandler(async (req, res) => {
         password: hashedPassword,
         gender: gender || "Not Specified",
         role: finalRole,
-        // isBlocked defaults to false in Schema, so we don't need to set it here
     });
 
     if (user) {
@@ -84,7 +81,7 @@ export const registerUser = asyncHandler(async (req, res) => {
             _id: user._id,
             name: user.name,
             email: user.email,
-            role: user.role, // This will now be 'admin' if successful
+            role: user.role, 
             token: generateToken(user._id),
         });
     } else {

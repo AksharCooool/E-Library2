@@ -3,11 +3,10 @@ import Review from "../models/Review.js";
 import fs from "fs";
 import path from "path";
 import asyncHandler from "express-async-handler";
-import { PDFDocument } from 'pdf-lib'; // <--- 1. Import PDF-Lib
+import { PDFDocument } from 'pdf-lib'; 
 
 // 1. GET ALL BOOKS
 export const getBooks = asyncHandler(async (req, res) => {
-  // Sort by newest first (-1)
   const books = await Book.find({}).sort({ createdAt: -1 });
   res.json(books);
 });
@@ -17,10 +16,8 @@ export const getBookById = asyncHandler(async (req, res) => {
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    // Fetch reviews separately for this book
     const reviews = await Review.find({ book: req.params.id }).sort({ createdAt: -1 });
 
-    // Combine book data with reviews
     res.json({ ...book.toObject(), reviews }); 
   } else {
     res.status(404);
@@ -33,30 +30,23 @@ export const createBook = asyncHandler(async (req, res) => {
   const { title, author, category, description, coverImage, pdfUrl, pages } = req.body;
 
   let finalPdfUrl = pdfUrl; 
-  let finalPageCount = Number(pages) || 0; // Default to input or 0
+  let finalPageCount = Number(pages) || 0; 
 
-  // IF A FILE WAS UPLOADED
   if (req.file) {
-    // 1. Set the URL
     finalPdfUrl = `${req.protocol}://${req.get("host")}/uploads/pdfs/${req.file.filename}`;
 
-    // 2. 👇 AUTO-DETECT PAGES (If not manually provided)
     if (finalPageCount === 0) {
         try {
-            // Read the file from the disk
             const pdfPath = req.file.path;
             const pdfBuffer = fs.readFileSync(pdfPath);
             
-            // Load into pdf-lib
             const pdfDoc = await PDFDocument.load(pdfBuffer);
             
-            // Get the count
             finalPageCount = pdfDoc.getPageCount();
             
             console.log(`Auto-detected ${finalPageCount} pages for ${req.file.originalname}`);
         } catch (error) {
             console.error("Failed to count PDF pages:", error);
-            // We just keep finalPageCount as 0 if this fails, so it doesn't crash the upload
         }
     }
   }
@@ -69,8 +59,8 @@ export const createBook = asyncHandler(async (req, res) => {
     description,
     coverImage,
     pdfUrl: finalPdfUrl,
-    pages: finalPageCount, // <--- Use the calculated count
-    isTrending: false, // Default to false
+    pages: finalPageCount,
+    isTrending: false,
   });
 
   const createdBook = await book.save();
@@ -82,7 +72,6 @@ export const deleteBook = asyncHandler(async (req, res) => {
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    // Delete local PDF file if it exists
     if (book.pdfUrl && book.pdfUrl.includes("/uploads/pdfs/")) {
       const filename = book.pdfUrl.split("/").pop();
       const filePath = path.join(process.cwd(), "uploads/pdfs", filename);
@@ -93,7 +82,6 @@ export const deleteBook = asyncHandler(async (req, res) => {
     }
 
     await book.deleteOne();
-    // Delete associated reviews
     await Review.deleteMany({ book: req.params.id });
     
     res.json({ message: 'Book removed' });
@@ -109,7 +97,6 @@ export const createBookReview = asyncHandler(async (req, res) => {
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    // Check if already reviewed
     const alreadyReviewed = await Review.findOne({
       book: req.params.id,
       user: req.user._id,
@@ -120,7 +107,6 @@ export const createBookReview = asyncHandler(async (req, res) => {
       throw new Error("You have already reviewed this book");
     }
 
-    // Create Review
     await Review.create({
       book: req.params.id,
       user: req.user._id,
@@ -129,7 +115,6 @@ export const createBookReview = asyncHandler(async (req, res) => {
       comment,
     });
 
-    // Recalculate Average Rating
     const stats = await Review.aggregate([
       { $match: { book: book._id } },
       {
@@ -160,7 +145,7 @@ export const toggleTrending = asyncHandler(async (req, res) => {
   const book = await Book.findById(req.params.id);
 
   if (book) {
-    book.isTrending = !book.isTrending; // Flip the boolean
+    book.isTrending = !book.isTrending;
     const updatedBook = await book.save();
     res.json(updatedBook);
   } else {

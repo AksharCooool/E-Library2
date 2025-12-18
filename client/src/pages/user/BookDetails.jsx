@@ -34,7 +34,7 @@ const ReviewSection = memo(({ bookId, reviews, onReviewAdded }) => {
             toast.success("Review Posted!");
             setNewComment("");
             setUserRating(0);
-            onReviewAdded(); // Trigger refresh in parent
+            onReviewAdded();
         } catch (error) {
             toast.error(error.response?.data?.message || "Error posting review");
         }
@@ -87,7 +87,6 @@ const ReviewSection = memo(({ bookId, reviews, onReviewAdded }) => {
                             </div>
                             <div className="flex text-yellow-400 text-xs">
                                 {[...Array(5)].map((_, i) => (
-                                    // 👇 The Fix: Removed the extra '<' at the start
                                     i < r.rating ? <StarFill key={i} /> : <Star key={i} className="text-gray-200" />
                                 ))}
                             </div>
@@ -109,7 +108,7 @@ const BookDetails = () => {
   const [activeTab, setActiveTab] = useState("overview"); 
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // Function to fetch book (reused for updates)
+  // Function to fetch book 
   const fetchBookData = async () => {
     const { data } = await axios.get(`/books/${id}`);
     return data;
@@ -119,10 +118,10 @@ const BookDetails = () => {
     const init = async () => {
       try {
         setLoading(true);
-        // PARALLEL FETCHING (Faster Load)
+        // PARALLEL FETCHING 
         const [bookData, favRes] = await Promise.all([
             fetchBookData(),
-            axios.get('/users/favorites').catch(() => ({ data: [] })) // Handle error gracefully
+            axios.get('/users/favorites').catch(() => ({ data: [] }))
         ]);
 
         setBook(bookData);

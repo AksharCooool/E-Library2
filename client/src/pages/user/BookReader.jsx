@@ -5,7 +5,7 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, Magic, 
   X, ZoomIn, ZoomOut, Send 
 } from 'react-bootstrap-icons';
-import ReactMarkdown from 'react-markdown'; // Added Import
+import ReactMarkdown from 'react-markdown';
 import toast from 'react-hot-toast';
 import axios from '../../axiosConfig'; 
 

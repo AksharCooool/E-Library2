@@ -13,8 +13,8 @@ const router = express.Router();
 router.get('/stats', protect, admin, getAdminStats);
 
 // User Management Routes
-router.get('/users', protect, admin, getAllUsers);           // Get all users with stats
-router.put('/users/:id/block', protect, admin, toggleBlockUser); // Block/Unblock user
-router.delete('/users/:id', protect, admin, deleteUser);     // Delete user
+router.get('/users', protect, admin, getAllUsers);           
+router.put('/users/:id/block', protect, admin, toggleBlockUser); 
+router.delete('/users/:id', protect, admin, deleteUser);     
 
 export default router;

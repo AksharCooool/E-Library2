@@ -3,7 +3,7 @@ import {
   toggleFavorite, 
   getFavorites, 
   updateProgress,
-  getUserProfile,   // <--- Add this import
+  getUserProfile,   
   updateUserProfile 
 } from "../controllers/userController.js";
 import { protect } from "../middleware/authMiddleware.js";

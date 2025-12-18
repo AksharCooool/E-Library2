@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import axios from '../../axiosConfig'; // <--- UPDATED: Use your global config
+import axios from '../../axiosConfig';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Person, Envelope, Lock, PersonCircle, ShieldLock, Key } from 'react-bootstrap-icons';
 
@@ -37,8 +37,6 @@ const Signup = () => {
     }
 
     try {
-        // Send data to backend
-        // Note: We use '/auth/register' because axiosConfig handles the 'http://localhost:5000/api' part
         const { data } = await axios.post('/auth/register', {
             ...formData,
             role: role,
@@ -51,9 +49,8 @@ const Signup = () => {
         navigate('/login'); 
 
     } catch (error) {
-        console.error("Registration Error:", error); // <--- CHECK CONSOLE FOR THIS
+        console.error("Registration Error:", error); 
         
-        // Extract exact message from server
         const msg = error.response?.data?.message || "Registration Failed. Check console for details.";
         toast.error(msg);
     }

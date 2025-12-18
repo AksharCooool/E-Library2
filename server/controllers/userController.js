@@ -52,27 +52,23 @@ export const updateProgress = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
   if (user) {
-    // 1. Check if first time reading
     const alreadyStarted = user.readingProgress.some(
         (p) => p.bookId.toString() === bookId
     );
 
-    // 2. Increment global read count if new
     if (!alreadyStarted) {
         await Book.findByIdAndUpdate(bookId, { $inc: { reads: 1 } });
     }
 
-    // 3. Remove OLD entry (so we can push the new one to the end)
     user.readingProgress = user.readingProgress.filter(
       (p) => p.bookId.toString() !== bookId
     );
 
-    // 4. Push NEW entry with current Timestamp
     user.readingProgress.push({ 
         bookId, 
         currentPage, 
         totalPages,
-        lastRead: new Date() // <--- Ensures time is saved!
+        lastRead: new Date()
     });
 
     await user.save();

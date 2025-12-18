@@ -41,7 +41,7 @@ const ManageTrending = () => {
     }
   };
 
-  // Filter books for the search list (exclude already trending ones to avoid clutter)
+  // Filter books for the search list 
   const regularBooks = books.filter(b => 
     !b.isTrending && 
     (b.title.toLowerCase().includes(searchTerm.toLowerCase()) || 

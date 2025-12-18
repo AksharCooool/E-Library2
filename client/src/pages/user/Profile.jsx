@@ -119,7 +119,6 @@ const Profile = () => {
     ? "https://cdn-icons-png.flaticon.com/512/6997/6997662.png" 
     : "https://cdn-icons-png.flaticon.com/512/236/236831.png";
 
-  // 👇 FIXED: Sort Activity safely (Newest first)
   const sortedActivity = (user.readingProgress || [])
     .filter(item => item.bookId) 
     .sort((a, b) => {
@@ -244,11 +243,9 @@ const Profile = () => {
                                 <div className="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
                                     {sortedActivity.map((activity, index) => {
                                         
-                                        // 🟢 FIX 1: Correct Pages Logic
                                         const totalPages = activity.bookId.pages || 100;
                                         const percentage = Math.round((activity.currentPage / totalPages) * 100) || 0;
                                         
-                                        // 🟢 FIX 2: Correct Date Logic
                                         const dateLabel = formatDate(activity.lastRead);
                                         const timeLabel = formatTime(activity.lastRead);
                                         const displayTime = dateLabel ? `${dateLabel} at ${timeLabel}` : "Recently Accessed";

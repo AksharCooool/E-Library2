@@ -28,7 +28,7 @@ app.use("/api/books", bookRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/ai", aiRoutes); // Full path becomes /api/ai/chat and /api/ai/generate-synopsis
+app.use("/api/ai", aiRoutes); 
 
 app.use(notFound);
 app.use(errorHandler);

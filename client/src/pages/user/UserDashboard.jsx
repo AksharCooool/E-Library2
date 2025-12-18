@@ -50,12 +50,10 @@ const UserDashboard = () => {
         
         // --- PROCESS READING LIST ---
         const activeReads = (data.readingProgress || [])
-            .filter(item => item.bookId !== null) // Safety check
-            // 👇 FIXED: Use reverse() to show the most recently added/read book at the top
+            .filter(item => item.bookId !== null) 
             .reverse() 
             .map(item => {
                 const current = item.currentPage || 1;
-                // Get pages from Book Object
                 const total = item.bookId.pages || 100; 
                 const percent = Math.round((current / total) * 100);
 

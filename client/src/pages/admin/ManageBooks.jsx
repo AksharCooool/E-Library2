@@ -137,7 +137,6 @@ const ManageBooks = () => {
     toast.success("Category removed");
   };
 
-  // 👇 FIXED: This now calls your Groq API instead of using a timeout
   const handleAIGenerate = async () => {
   if (!currentBook.title || !currentBook.author) {
     toast.error("Enter title and author first");
@@ -155,8 +154,6 @@ const ManageBooks = () => {
     setCurrentBook((prev) => ({
       ...prev,
       synopsis: data.synopsis,
-      // We no longer touch the 'pages' property here, 
-      // so it remains whatever the user typed (or empty).
     }));
 
     toast.success("AI Synopsis ready!", { id: toastId });

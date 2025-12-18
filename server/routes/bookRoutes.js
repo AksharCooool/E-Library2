@@ -11,10 +11,10 @@ import {
   createBook,
   deleteBook,
   createBookReview,
-  toggleTrending, // <--- 1. IMPORT THIS
+  toggleTrending, 
 } from "../controllers/bookController.js";
 
-// 👇 2. IMPORT ADMIN MIDDLEWARE
+//  2. IMPORT ADMIN MIDDLEWARE
 import { protect, admin } from "../middleware/authMiddleware.js"; 
 
 const router = express.Router();

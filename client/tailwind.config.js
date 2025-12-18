@@ -23,6 +23,6 @@ export default {
     },
   },
   plugins: [
-    require('@tailwindcss/typography'), // Added this line
+    require('@tailwindcss/typography'), 
   ],
 }

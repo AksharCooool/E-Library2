@@ -24,18 +24,17 @@ const userSchema = mongoose.Schema(
       default: "user",
       enum: ["user", "admin"],
     },
-    // 👇 Block status field
+    //  Block status field
     isBlocked: {
       type: Boolean,
       default: false,
     },
-    // 👇 UPDATED: Reading Progress with Timestamp & Total Pages
     readingProgress: [
       {
         bookId: { type: mongoose.Schema.Types.ObjectId, ref: "Book" },
         currentPage: { type: Number, default: 0 },
-        totalPages: { type: Number, default: 0 }, // Saves the book length
-        lastRead: { type: Date, default: Date.now } // Saves WHEN you read it
+        totalPages: { type: Number, default: 0 }, 
+        lastRead: { type: Date, default: Date.now } 
       },
     ],
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],

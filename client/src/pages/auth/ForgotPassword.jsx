@@ -21,7 +21,7 @@ const ForgotPassword = () => {
     setTimeout(() => {
         toast.dismiss(toastId);
         toast.success("Reset link sent! Check your inbox.");
-        setEmail(''); // Clear the input
+        setEmail(''); 
     }, 1500);
   };
 

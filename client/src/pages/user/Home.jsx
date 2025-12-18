@@ -108,7 +108,7 @@ const Home = () => {
 
   const trendingBooks = books.filter(b => b?.isTrending);
 
-  // 👇 DYNAMIC SORT: Sort by 'reads' (Descending)
+  //  DYNAMIC SORT: Sort by 'reads' (Descending)
   const mostReadBooks = [...books].sort((a, b) => (b.reads || 0) - (a.reads || 0)).slice(0, 3);
 
   // --- HANDLERS ---
@@ -198,7 +198,7 @@ const Home = () => {
                         <h2 className="text-xl font-bold">Most Read</h2>
                     </div>
                     <div className="space-y-4">
-                        {/* 👇 Use mostReadBooks instead of slicing unsorted books */}
+                        {/*  Use mostReadBooks instead of slicing unsorted books */}
                         {mostReadBooks.map((book, index) => (
                             <div key={book._id} onClick={() => openBookDetails(book._id)} className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-white'}`}>
                                 <span className="text-2xl font-black opacity-30">0{index + 1}</span>

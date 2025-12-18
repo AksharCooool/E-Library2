@@ -5,14 +5,14 @@ const reviewSchema = mongoose.Schema(
     book: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "Book", // Links the review to a specific book
+      ref: "Book", 
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "User", // Links the review to a user
+      ref: "User", 
     },
-    name: { type: String, required: true }, // Storing name here saves a lookup later
+    name: { type: String, required: true }, 
     rating: { type: Number, required: true },
     comment: { type: String, required: true },
   },
@@ -21,7 +21,7 @@ const reviewSchema = mongoose.Schema(
   }
 );
 
-// Prevent user from reviewing the same book twice (Optional but recommended)
+// Prevent user from reviewing the same book twice 
 reviewSchema.index({ book: 1, user: 1 }, { unique: true });
 
 const Review = mongoose.model("Review", reviewSchema);
